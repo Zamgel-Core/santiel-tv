@@ -8,8 +8,7 @@ exports.handler = async (event) => {
     }
 
     const body = JSON.parse(event.body || "{}");
-    const device_id = body.device_id;
-    const key = body.key;
+    const { device_id, key } = body;
 
     if (!device_id || !key) {
       return {
@@ -18,22 +17,39 @@ exports.handler = async (event) => {
       };
     }
 
-    const url =
-      `${process.env.SUPABASE_URL}/rest/v1/users` +
-      `?device_mac=eq.${encodeURIComponent(device_id)}` +
-      `&device_key=eq.${encodeURIComponent(key)}` +
-      `&select=*`;
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-    });
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ status: "missing_env_vars" }),
+      };
+    }
 
-    const data = await res.json();
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?device_mac=eq.${encodeURIComponent(device_id)}&device_key=eq.${encodeURIComponent(key)}&select=*`,
+      {
+        method: "GET",
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          status: "supabase_error",
+          message: data.message || data.error || "Error consultando Supabase",
+        }),
+      };
+    }
 
     if (!Array.isArray(data) || data.length === 0) {
       return {
@@ -67,8 +83,8 @@ exports.handler = async (event) => {
       statusCode: 200,
       body: JSON.stringify({
         status: "active",
-        account_type: user.account_type || "customer",
-        username: user.username || null,
+        username: user.username,
+        account_type: user.account_type,
       }),
     };
   } catch (err) {
