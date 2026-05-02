@@ -1,8 +1,26 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Tv, Play, Film, MonitorPlay, Trophy, Star, Gift, Phone, CheckCircle2, ChevronRight, ShieldCheck, Zap, HeartHandshake, Smartphone, Tablet, Apple, Monitor, Laptop, AlertCircle, UserCog, Bug, HelpCircle, X, Globe, Download, Lock, ExternalLink, Coins } from 'lucide-react';
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Play, X, ShieldCheck, Lock } from "lucide-react";
 
-const WHATSAPP_NUMBER = "13468847800"; // Reemplazar con el número real
+import { supabase } from "./supabaseClient";
+
+import { getWhatsAppLink } from "./utils/whatsapp";
+import { getDaysRemaining } from "./utils/dates";
+import { downloadData } from "./data/downloadData";
+
+import Navbar from "./components/Navbar";
+import HeroSection from "./components/HeroSection";
+import PlansSection from "./components/PlansSection";
+import LoyaltySection from "./components/LoyaltySection";
+import ContentSection from "./components/ContentSection";
+import CompatibilitySection from "./components/CompatibilitySection";
+import AboutSection from "./components/AboutSection";
+import SupportSection from "./components/SupportSection";
+import CTASection from "./components/CTASection";
+import Footer from "./components/Footer";
+
+import PortalModal from "./components/PortalModal";
+import DownloadModal from "./components/DownloadModal";
 
 const translations = {
   es: {
@@ -287,43 +305,84 @@ const translations = {
   }
 };
 
-const getWhatsAppLink = (message: string) => {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-};
-
 export default function App() {
   const [showDemoModal, setShowDemoModal] = useState(false);
-  const [lang, setLang] = useState<'es' | 'en'>('es');
-  const [currency, setCurrency] = useState<'USD' | 'MXN'>('USD');
+  const [lang, setLang] = useState<"es" | "en">("es");
+  const [currency, setCurrency] = useState<"USD" | "MXN">("USD");
+
   const [activeDownload, setActiveDownload] = useState<string | null>(null);
   const [downloadPassword, setDownloadPassword] = useState("");
   const [passwordError, setPasswordError] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [legalModal, setLegalModal] = useState<{ type: 'terminos' | 'privacidad', isOpen: boolean }>({ type: 'terminos', isOpen: false });
+
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [portalUsername, setPortalUsername] = useState("");
+  const [portalPassword, setPortalPassword] = useState("");
+  const [portalError, setPortalError] = useState("");
+  const [portalUser, setPortalUser] = useState<any>(null);
+  const [isPortalLoading, setIsPortalLoading] = useState(false);
+
+  const [legalModal, setLegalModal] = useState<{
+    type: "terminos" | "privacidad";
+    isOpen: boolean;
+  }>({
+    type: "terminos",
+    isOpen: false,
+  });
 
   const t = translations[lang];
 
-  const downloadData: Record<string, { link?: string, images?: string[], pass: string, title: string }> = {
-    android: { 
-      title: "Android APK",
-      link: "https://www.mediafire.com/file/4yss9xnkucl4zbr/SantielTV_V1.apk/file", 
-      pass: "Santielandroid2026" 
-    },
-    apple: { 
-      title: "Apple iOS",
-      link: "https://apps.apple.com/us/app/aztk-play/id1662070685", 
-      pass: "SantielApple1103" 
-    },
-    roku: { 
-      title: "Roku TV",
-      images: ["DigitalPro", "MundoSoporte"], 
-      pass: "SantielRokutv2026" 
-    },
-    pc: { 
-      title: "PC / Mac",
-      link: "https://www.mediafire.com/file/urdb1l3cf7yvpoe/iptv-smarters-pro-1-1-2.exe/file", 
-      pass: "SantielPC2026" 
+  const handlePortalLogin = async () => {
+    setPortalError("");
+    setIsPortalLoading(true);
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("username", portalUsername.trim())
+      .eq("password", portalPassword.trim())
+      .maybeSingle();
+
+    setIsPortalLoading(false);
+
+    if (error) {
+      console.error("Portal login error:", error);
+      setPortalError("Error de conexión. Intenta nuevamente.");
+      return;
     }
+
+    if (!data) {
+      setPortalError("Usuario o contraseña incorrectos.");
+      return;
+    }
+
+    if (
+      data.is_active === false ||
+      data.status === "blocked" ||
+      data.status === "bloqueada"
+    ) {
+      setPortalError("Esta cuenta no está activa. Contacta a soporte.");
+      return;
+    }
+
+    if (data.expiration_date) {
+      const expirationDate = new Date(data.expiration_date);
+      const today = new Date();
+
+      if (expirationDate < today) {
+        setPortalError("Tu cuenta está vencida. Renueva tu membresía.");
+        return;
+      }
+    }
+
+    setPortalUser(data);
+  };
+
+  const handlePortalLogout = () => {
+    setPortalUser(null);
+    setPortalUsername("");
+    setPortalPassword("");
+    setPortalError("");
   };
 
   const handleUnlock = () => {
@@ -344,634 +403,114 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 font-sans selection:bg-yellow-500/30 relative">
-      {/* Background Image with Overlay */}
       <div className="fixed inset-0 z-[-1]">
-        <img src="/background.png" alt="Fondo Santiel TV" className="w-full h-full object-cover opacity-40" onError={(e) => e.currentTarget.style.display = 'none'} />
-        <div className="absolute inset-0 bg-gradient-to-b from-neutral-950/80 via-neutral-950/90 to-neutral-950"></div>
+        <img
+          src="/background.png"
+          alt="Fondo Santiel TV"
+          className="w-full h-full object-cover opacity-40"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-neutral-950/80 via-neutral-950/90 to-neutral-950" />
       </div>
 
-      {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-neutral-950/80 backdrop-blur-md border-b border-neutral-800/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Santiel TV" className="h-8 w-auto drop-shadow-md" onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-            }} />
-            <div className="hidden flex items-center gap-2 text-yellow-500">
-              <Tv className="w-6 h-6" />
-              <span className="font-bold text-xl tracking-tight text-white">Santiel <span className="text-yellow-500">TV</span></span>
-            </div>
-          </div>
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-neutral-300">
-            <a href="#inicio" className="hover:text-yellow-500 transition-colors">{t.nav.inicio}</a>
-            <a href="#planes" className="hover:text-yellow-500 transition-colors">{t.nav.planes}</a>
-            <a href="#lealtad" className="hover:text-yellow-500 transition-colors">{t.nav.lealtad}</a>
-            <a href="#contenido" className="hover:text-yellow-500 transition-colors">{t.nav.contenido}</a>
-            <a href="#compatibilidad" className="hover:text-yellow-500 transition-colors">{t.nav.compatibilidad}</a>
-            <a href="#soporte" className="hover:text-yellow-500 transition-colors">{t.nav.soporte}</a>
-          </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setCurrency(currency === 'USD' ? 'MXN' : 'USD')}
-              className="p-2 text-neutral-400 hover:text-yellow-500 transition-colors flex items-center gap-1 text-xs font-bold uppercase border border-neutral-800 rounded-lg"
-              title="Cambiar moneda"
-            >
-              <Coins className="w-4 h-4" />
-              {currency}
-            </button>
-            <button 
-              onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
-              className="p-2 text-neutral-400 hover:text-yellow-500 transition-colors flex items-center gap-1 text-xs font-bold uppercase"
-              title="Cambiar idioma"
-            >
-              <Globe className="w-4 h-4" />
-              {lang}
-            </button>
-            <button 
-              onClick={() => setShowDemoModal(true)}
-              className="hidden sm:flex items-center gap-2 text-sm font-bold text-yellow-500 hover:text-yellow-400 transition-colors px-4 py-2"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              {t.nav.probarGratis}
-            </button>
-            <a 
-              href={getWhatsAppLink(lang === 'es' ? "Hola, quiero más información sobre Santiel TV" : "Hello, I want more information about Santiel TV")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-gradient-to-r from-yellow-500 to-yellow-400 hover:from-yellow-400 hover:to-yellow-300 text-neutral-950 px-5 py-2 rounded-full font-bold text-sm transition-all shadow-lg shadow-yellow-500/20 flex items-center gap-2"
-            >
-              <Phone className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.nav.contactar}</span>
-            </a>
-          </div>
-        </div>
-      </nav>
+      <Navbar
+        lang={lang}
+        setLang={setLang}
+        currency={currency}
+        setCurrency={setCurrency}
+        setShowLoginModal={setShowLoginModal}
+        setShowDemoModal={setShowDemoModal}
+        t={t}
+      />
 
       <main>
-        {/* 1. INICIO (HOME) */}
-        <section id="inicio" className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12 min-h-[90vh] justify-center">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="flex-1 text-center lg:text-left"
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-500 text-sm font-medium mb-6 border border-yellow-500/20 backdrop-blur-sm">
-              <Star className="w-4 h-4" />
-              <span>{t.hero.badge}</span>
-            </div>
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 leading-tight drop-shadow-lg">
-              {t.hero.title} <br className="hidden lg:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-600">Santiel TV</span>
-            </h1>
-            <p className="text-lg sm:text-xl text-neutral-300 mb-8 max-w-2xl mx-auto lg:mx-0 leading-relaxed drop-shadow">
-              {t.hero.desc}
-            </p>
-            <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-              <a 
-                href="#planes"
-                className="w-full sm:w-auto bg-gradient-to-r from-yellow-500 to-yellow-400 hover:from-yellow-400 hover:to-yellow-300 text-neutral-950 px-8 py-4 rounded-full font-bold text-lg transition-all hover:scale-105 flex items-center justify-center gap-2 shadow-xl shadow-yellow-500/20"
-              >
-                {t.hero.btnPlanes} <ChevronRight className="w-5 h-5" />
-              </a>
-              <a 
-                href="#contenido"
-                className="w-full sm:w-auto bg-neutral-800/80 hover:bg-neutral-700/80 backdrop-blur-md text-white px-8 py-4 rounded-full font-bold text-lg transition-all flex items-center justify-center gap-2 border border-neutral-700"
-              >
-                {t.hero.btnCatalogo}
-              </a>
-            </div>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex-1 w-full max-w-lg relative flex justify-center"
-          >
-            <div className="absolute inset-0 bg-yellow-500/20 blur-[100px] rounded-full"></div>
-            <div className="relative z-10 group">
-              <motion.img 
-                animate={{ y: [-10, 10, -10] }}
-                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                src="/icon.png" 
-                alt="Santiel TV App Icon" 
-                className="w-64 h-64 sm:w-80 sm:h-80 object-contain drop-shadow-[0_0_30px_rgba(234,179,8,0.3)]"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                }}
-              />
-              {/* Fallback if icon is not found */}
-              <div className="hidden relative bg-neutral-900 border border-neutral-800 rounded-3xl p-4 shadow-2xl shadow-yellow-500/10 w-full aspect-video">
-                <div className="w-full h-full bg-neutral-950 rounded-2xl overflow-hidden relative flex items-center justify-center border border-neutral-800">
-                  <div className="absolute inset-0 bg-gradient-to-br from-neutral-800 to-neutral-950 opacity-50"></div>
-                  <motion.div 
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                    className="relative z-10 flex flex-col items-center"
-                  >
-                    <Tv className="w-24 h-24 text-yellow-500 mb-4 drop-shadow-[0_0_15px_rgba(234,179,8,0.5)]" />
-                    <span className="text-3xl font-bold tracking-widest text-white uppercase">Santiel</span>
-                  </motion.div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </section>
-
-        {/* 2. PLANES */}
-        <section id="planes" className="py-24 bg-neutral-950/50 backdrop-blur-sm border-y border-neutral-800/50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-3xl mx-auto mb-16">
-              <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t.planes.title}</h2>
-              <p className="text-neutral-400 text-lg">
-                {t.planes.desc}
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-              {/* Plan 1 */}
-              <div className="bg-neutral-900/80 backdrop-blur-md border border-neutral-800 rounded-3xl p-8 flex flex-col relative hover:border-yellow-500/30 transition-colors">
-                <div className="mb-8">
-                  <h3 className="text-xl font-semibold text-neutral-300 mb-2">{lang === 'es' ? 'Plan 1 mes' : '1 Month Plan'}</h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-medium text-neutral-500 line-through">
-                      {currency === 'USD' ? '$20' : '$270'}
-                    </span>
-                    <span className="text-4xl font-bold text-white">
-                      {currency === 'USD' ? '$15' : '$200'}
-                    </span>
-                    <span className="text-neutral-500">{currency}</span>
-                  </div>
-                </div>
-                <ul className="space-y-4 mb-8 flex-1">
-                  {['Acceso completo', 'Películas', 'Series', 'TV en vivo', 'Eventos PPV'].map((benefit, idx) => (
-                    <li key={idx} className="flex items-center gap-3 text-neutral-300">
-                      <CheckCircle2 className="w-5 h-5 text-yellow-500 shrink-0" />
-                      <span>{lang === 'es' ? benefit : t.contenido.items[idx]}</span>
-                    </li>
-                  ))}
-                </ul>
-                <a 
-                  href={getWhatsAppLink(lang === 'es' ? `Hola, quiero comprar el Plan de 1 mes por ${currency === 'USD' ? '$15 USD' : '$200 MXN'}.` : `Hello, I want to buy the 1 Month Plan for ${currency === 'USD' ? '$15 USD' : '$200 MXN'}.`)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full block bg-neutral-800 hover:bg-neutral-700 text-white py-3 rounded-xl font-semibold transition-colors text-center"
-                >
-                  {t.planes.btnComprar}
-                </a>
-              </div>
-
-              {/* Plan 3 (Destacado) */}
-              <div className="bg-gradient-to-b from-yellow-500/10 to-neutral-900/90 backdrop-blur-md border-2 border-yellow-500 rounded-3xl p-8 flex flex-col relative transform md:-translate-y-4 shadow-2xl shadow-yellow-500/20">
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-yellow-400 text-neutral-950 px-6 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-yellow-500/30 whitespace-nowrap uppercase tracking-wider">
-                  <Star className="w-4 h-4 fill-neutral-950" /> {t.planes.mejorOferta}
-                </div>
-                <div className="mb-8 mt-2">
-                  <h3 className="text-xl font-semibold text-yellow-500 mb-2">{lang === 'es' ? 'Plan 3 Meses' : '3 Months Plan'}</h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-medium text-neutral-500 line-through opacity-70">
-                      {currency === 'USD' ? '$50' : '$670'}
-                    </span>
-                    <span className="text-5xl font-bold text-white">
-                      {currency === 'USD' ? '$35' : '$450'}
-                    </span>
-                    <span className="text-neutral-400">{currency}</span>
-                  </div>
-                </div>
-                <ul className="space-y-4 mb-8 flex-1">
-                  {['Acceso completo', 'Películas', 'Series', 'TV en vivo', 'Eventos PPV'].map((benefit, idx) => (
-                    <li key={idx} className="flex items-center gap-3 text-neutral-200">
-                      <CheckCircle2 className="w-5 h-5 text-yellow-500 shrink-0" />
-                      <span>{lang === 'es' ? benefit : t.contenido.items[idx]}</span>
-                    </li>
-                  ))}
-                  <div className="pt-4 mt-4 border-t border-yellow-500/20 space-y-3">
-                    <li className="flex items-center gap-3 text-yellow-400 font-medium">
-                      <Zap className="w-5 h-5 shrink-0 fill-yellow-400/20" />
-                      <span>{t.planes.ahorro}</span>
-                    </li>
-                    <li className="flex items-center gap-3 text-yellow-400 font-medium">
-                      <ShieldCheck className="w-5 h-5 shrink-0 fill-yellow-400/20" />
-                      <span>{t.planes.recomendado}</span>
-                    </li>
-                  </div>
-                </ul>
-                <a 
-                  href={getWhatsAppLink(lang === 'es' ? `Hola, quiero aprovechar la Mejor Oferta: Plan de 3 meses por ${currency === 'USD' ? '$35 USD' : '$450 MXN'}.` : `Hello, I want to take advantage of the Best Offer: 3 Months Plan for ${currency === 'USD' ? '$35 USD' : '$450 MXN'}.`)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full block bg-gradient-to-r from-yellow-500 to-yellow-400 hover:from-yellow-400 hover:to-yellow-300 text-neutral-950 py-4 rounded-xl font-bold transition-all text-center text-lg shadow-lg shadow-yellow-500/25 hover:scale-[1.02]"
-                >
-                  {t.planes.btnComprar}
-                </a>
-              </div>
-
-              {/* Plan 2 */}
-              <div className="bg-neutral-900/80 backdrop-blur-md border border-neutral-800 rounded-3xl p-8 flex flex-col relative hover:border-yellow-500/30 transition-colors">
-                <div className="mb-8">
-                  <h3 className="text-xl font-semibold text-neutral-300 mb-2">{lang === 'es' ? 'Plan 2 Meses' : '2 Months Plan'}</h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-medium text-neutral-500 line-through">
-                      {currency === 'USD' ? '$35' : '$470'}
-                    </span>
-                    <span className="text-4xl font-bold text-white">
-                      {currency === 'USD' ? '$25' : '$350'}
-                    </span>
-                    <span className="text-neutral-500">{currency}</span>
-                  </div>
-                </div>
-                <ul className="space-y-4 mb-8 flex-1">
-                  {['Acceso completo', 'Películas', 'Series', 'TV en vivo', 'Eventos PPV'].map((benefit, idx) => (
-                    <li key={idx} className="flex items-center gap-3 text-neutral-300">
-                      <CheckCircle2 className="w-5 h-5 text-yellow-500 shrink-0" />
-                      <span>{lang === 'es' ? benefit : t.contenido.items[idx]}</span>
-                    </li>
-                  ))}
-                </ul>
-                <a 
-                  href={getWhatsAppLink(lang === 'es' ? `Hola, quiero comprar el Plan de 2 meses por ${currency === 'USD' ? '$25 USD' : '$350 MXN'}.` : `Hello, I want to buy the 2 Months Plan for ${currency === 'USD' ? '$25 USD' : '$350 MXN'}.`)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full block bg-neutral-800 hover:bg-neutral-700 text-white py-3 rounded-xl font-semibold transition-colors text-center"
-                >
-                  {t.planes.btnComprar}
-                </a>
-              </div>
-            </div>
-
-            {/* Info Moneda y Pagos */}
-            <div className="mt-20 grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-              <div className="bg-neutral-900/40 border border-neutral-800/50 rounded-3xl p-8 hover:border-yellow-500/20 transition-colors">
-                <h4 className="text-xl font-bold text-yellow-500 mb-4 flex items-center gap-2">
-                  <Coins className="w-6 h-6" /> {t.planes.monedaTitle}
-                </h4>
-                <div className="space-y-4 text-neutral-300 whitespace-pre-line">
-                  {t.planes.monedaDesc}
-                </div>
-              </div>
-              <div className="bg-neutral-900/40 border border-neutral-800/50 rounded-3xl p-8 hover:border-yellow-500/20 transition-colors">
-                <h4 className="text-xl font-bold text-yellow-500 mb-4 flex items-center gap-2">
-                  <ShieldCheck className="w-6 h-6" /> {t.planes.pagosTitle}
-                </h4>
-                <div className="space-y-4 text-neutral-300 whitespace-pre-line">
-                  {t.planes.pagosDesc}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 3. SISTEMA DE LEALTAD */}
-        <section id="lealtad" className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-gradient-to-br from-neutral-900/90 to-neutral-950/90 backdrop-blur-md border border-neutral-800/50 rounded-[2.5rem] p-8 md:p-16 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-500/10 blur-[80px] rounded-full"></div>
-            
-            <div className="relative z-10 flex flex-col lg:flex-row gap-12 items-center">
-              <div className="flex-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-500 text-sm font-medium mb-6 border border-yellow-500/20">
-                  <Trophy className="w-4 h-4" />
-                  <span>{t.lealtad.badge}</span>
-                </div>
-                <h2 className="text-3xl sm:text-4xl font-bold mb-6">{t.lealtad.title}</h2>
-                <p className="text-xl text-neutral-300 mb-8">
-                  {t.lealtad.desc}
-                </p>
-                
-                <div className="bg-neutral-950/50 border border-neutral-800/50 rounded-2xl p-6 mb-8">
-                  <h4 className="text-yellow-500 font-semibold mb-4 flex items-center gap-2">
-                    <Gift className="w-5 h-5" /> {t.lealtad.comoFunciona}
-                  </h4>
-                  <ul className="space-y-3 text-neutral-300">
-                    <li className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                      <span>{t.lealtad.regla1}</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                      <span>{t.lealtad.regla2}</span>
-                    </li>
-                    <li className="flex items-center gap-3 text-white font-medium mt-4 pt-4 border-t border-neutral-800/50">
-                      <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                      <span>{t.lealtad.regla3}</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <p className="text-lg font-medium text-yellow-400/90 mb-8 italic">
-                  {t.lealtad.cita}
-                </p>
-
-                <a 
-                  href={getWhatsAppLink(lang === 'es' ? "Hola, quiero activar mi membresía y participar en el sistema de lealtad." : "Hello, I want to activate my membership and participate in the loyalty system.")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-white text-neutral-950 px-8 py-4 rounded-full font-bold hover:bg-neutral-200 transition-colors shadow-lg"
-                >
-                  {t.lealtad.btnActivar} <ChevronRight className="w-5 h-5" />
-                </a>
-              </div>
-
-              <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {t.lealtad.beneficios.map((benefit, i) => {
-                  const icons = [Gift, Zap, Star, HeartHandshake];
-                  const Icon = icons[i];
-                  return (
-                    <div key={i} className="bg-neutral-900/50 border border-neutral-800/50 p-6 rounded-2xl hover:bg-neutral-800/50 transition-colors">
-                      <Icon className="w-8 h-8 text-yellow-500 mb-4" />
-                      <h4 className="text-white font-semibold mb-2">{benefit.title}</h4>
-                      <p className="text-sm text-neutral-400">{benefit.desc}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 4. CONTENIDO */}
-        <section id="contenido" className="py-24 bg-neutral-950/50 backdrop-blur-sm border-y border-neutral-800/50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-6">{t.contenido.title}</h2>
-            <p className="text-xl text-neutral-400 max-w-2xl mx-auto mb-16">
-              {t.contenido.desc}
-            </p>
-
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-8 max-w-4xl mx-auto mb-16">
-              {[
-                { icon: Film, label: t.contenido.items[0] },
-                { icon: MonitorPlay, label: t.contenido.items[1] },
-                { icon: Tv, label: t.contenido.items[2] },
-                { icon: Trophy, label: t.contenido.items[3] },
-                { icon: Star, label: t.contenido.items[4] }
-              ].map((item, i) => (
-                <div key={i} className="flex flex-col items-center gap-4 p-6 rounded-2xl bg-neutral-900/50 border border-neutral-800/50 hover:border-yellow-500/50 transition-colors group">
-                  <div className="w-16 h-16 rounded-full bg-neutral-950 flex items-center justify-center group-hover:scale-110 transition-transform group-hover:bg-yellow-500/10 shadow-inner">
-                    <item.icon className="w-8 h-8 text-neutral-400 group-hover:text-yellow-500 transition-colors" />
-                  </div>
-                  <span className="font-medium text-neutral-300 group-hover:text-white transition-colors text-sm sm:text-base">{item.label}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-4xl mx-auto">
-              <div className="p-8 rounded-3xl bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 shadow-xl">
-                <div className="text-4xl font-black text-yellow-500 mb-2">{t.contenido.stats.movies.split(' ')[0]}</div>
-                <div className="text-neutral-400 font-medium uppercase tracking-wider text-sm">{t.contenido.stats.movies.split(' ').slice(1).join(' ')}</div>
-              </div>
-              <div className="p-8 rounded-3xl bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 shadow-xl">
-                <div className="text-4xl font-black text-yellow-500 mb-2">{t.contenido.stats.series.split(' ')[0]}</div>
-                <div className="text-neutral-400 font-medium uppercase tracking-wider text-sm">{t.contenido.stats.series.split(' ').slice(1).join(' ')}</div>
-              </div>
-              <div className="p-8 rounded-3xl bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 shadow-xl">
-                <div className="text-4xl font-black text-yellow-500 mb-2">{t.contenido.stats.channels.split(' ')[0]}</div>
-                <div className="text-neutral-400 font-medium uppercase tracking-wider text-sm">{t.contenido.stats.channels.split(' ').slice(1).join(' ')}</div>
-              </div>
-            </div>
-            <p className="mt-12 text-neutral-400 font-medium italic">
-              ✨ {t.contenido.stats.platforms}
-            </p>
-          </div>
-        </section>
-
-        {/* 4.5 COMPATIBILIDAD */}
-        <section id="compatibilidad" className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t.compatibilidad.title}</h2>
-            <p className="text-xl text-neutral-400 mb-4">
-              {t.compatibilidad.desc}
-            </p>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 font-bold">
-              <MonitorPlay className="w-5 h-5" />
-              <span>{t.compatibilidad.simultaneos}</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Android */}
-            <div className="bg-neutral-900/50 border border-neutral-800/50 rounded-3xl p-8 flex flex-col items-center text-center hover:border-yellow-500/30 transition-colors shadow-lg group">
-              <div className="flex gap-2 mb-6 text-yellow-500 group-hover:scale-110 transition-transform">
-                <Smartphone className="w-10 h-10" />
-                <Tablet className="w-10 h-10" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Android</h3>
-              <p className="text-neutral-400 text-sm mb-6">Celulares y Tablets</p>
-              <button 
-                onClick={() => setActiveDownload('android')}
-                className="mt-auto flex items-center gap-2 text-yellow-500 hover:text-yellow-400 font-bold text-sm transition-colors"
-              >
-                <Download className="w-4 h-4" /> {t.compatibilidad.btnDescargas}
-              </button>
-            </div>
-
-            {/* Apple */}
-            <div className="bg-neutral-900/50 border border-neutral-800/50 rounded-3xl p-8 flex flex-col items-center text-center hover:border-yellow-500/30 transition-colors shadow-lg group">
-              <div className="flex gap-2 mb-6 text-yellow-500 group-hover:scale-110 transition-transform">
-                <Apple className="w-10 h-10" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Apple</h3>
-              <p className="text-neutral-400 text-sm mb-6">iPhone y iPad</p>
-              <button 
-                onClick={() => setActiveDownload('apple')}
-                className="mt-auto flex items-center gap-2 text-yellow-500 hover:text-yellow-400 font-bold text-sm transition-colors"
-              >
-                <Download className="w-4 h-4" /> {t.compatibilidad.btnDescargas}
-              </button>
-            </div>
-
-            {/* Roku TV */}
-            <div className="bg-neutral-900/50 border border-neutral-800/50 rounded-3xl p-8 flex flex-col items-center text-center hover:border-yellow-500/30 transition-colors shadow-lg group">
-              <div className="flex gap-2 mb-6 text-yellow-500 group-hover:scale-110 transition-transform">
-                <Tv className="w-10 h-10" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Roku TV</h3>
-              <p className="text-neutral-400 text-sm mb-6">Smart TVs y Reproductores</p>
-              <button 
-                onClick={() => setActiveDownload('roku')}
-                className="mt-auto flex items-center gap-2 text-yellow-500 hover:text-yellow-400 font-bold text-sm transition-colors"
-              >
-                <Download className="w-4 h-4" /> {t.compatibilidad.btnDescargas}
-              </button>
-            </div>
-
-            {/* PC */}
-            <div className="bg-neutral-900/50 border border-neutral-800/50 rounded-3xl p-8 flex flex-col items-center text-center hover:border-yellow-500/30 transition-colors shadow-lg group">
-              <div className="flex gap-2 mb-6 text-yellow-500 group-hover:scale-110 transition-transform">
-                <Monitor className="w-10 h-10" />
-                <Laptop className="w-10 h-10" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">PC y Mac</h3>
-              <p className="text-neutral-400 text-sm mb-6">Navegadores Web</p>
-              <button 
-                onClick={() => setActiveDownload('pc')}
-                className="mt-auto flex items-center gap-2 text-yellow-500 hover:text-yellow-400 font-bold text-sm transition-colors"
-              >
-                <Download className="w-4 h-4" /> {t.compatibilidad.btnDescargas}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* 5. ACERCA DE */}
-        <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
-            <div>
-              <h2 className="text-3xl sm:text-4xl font-bold mb-6">{t.acerca.title}</h2>
-              <p className="text-lg text-neutral-300 mb-6 leading-relaxed">
-                {t.acerca.desc}
-              </p>
-              <div className="grid grid-cols-2 gap-6 mt-12">
-                {t.acerca.puntos.map((focus, i) => (
-                  <div key={i} className="border-l-2 border-yellow-500 pl-4">
-                    <h4 className="text-white font-semibold mb-1">{focus.title}</h4>
-                    <p className="text-sm text-neutral-400">{focus.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="relative flex justify-center">
-              <div className="aspect-square w-full max-w-md rounded-full bg-gradient-to-tr from-yellow-500/20 to-neutral-900/50 border border-neutral-800/50 flex items-center justify-center p-12 relative overflow-hidden backdrop-blur-sm">
-                <ShieldCheck className="w-32 h-32 text-yellow-500 relative z-10 drop-shadow-[0_0_15px_rgba(234,179,8,0.3)]" />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 5.5 SOPORTE Y AYUDA */}
-        <section id="soporte" className="py-24 bg-neutral-950/50 backdrop-blur-sm border-y border-neutral-800/50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-3xl mx-auto mb-16">
-              <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t.soporte.title}</h2>
-              <p className="text-xl text-neutral-400">
-                {t.soporte.desc}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto justify-center">
-              {[
-                { title: lang === 'es' ? "Problemas con la app" : "App issues", icon: Smartphone, msg: lang === 'es' ? "Hola, tengo problemas con la app de Santiel TV y necesito ayuda." : "Hello, I have issues with the Santiel TV app and need help." },
-                { title: lang === 'es' ? "Problemas con la cuenta" : "Account issues", icon: UserCog, msg: lang === 'es' ? "Hola, tengo problemas con mi cuenta de Santiel TV." : "Hello, I have issues with my Santiel TV account." },
-                { title: lang === 'es' ? "Error al acceder" : "Login error", icon: AlertCircle, msg: lang === 'es' ? "Hola, me aparece un error al intentar acceder a Santiel TV." : "Hello, I get an error when trying to access Santiel TV." },
-                { title: lang === 'es' ? "Reportar bug" : "Report bug", icon: Bug, msg: lang === 'es' ? "Hola, quiero reportar un bug o error en Santiel TV." : "Hello, I want to report a bug or error in Santiel TV." },
-                { title: lang === 'es' ? "Soporte general" : "General support", icon: HelpCircle, msg: lang === 'es' ? "Hola, necesito soporte general sobre Santiel TV." : "Hello, I need general support about Santiel TV." },
-                { title: lang === 'es' ? t.soporte.descargas : t.soporte.descargas, icon: Download, msg: lang === 'es' ? "Hola, tengo problemas con los links de descarga de Santiel TV." : "Hello, I'm having trouble with the Santiel TV download links." }
-              ].map((item, i) => (
-                <a 
-                  key={i}
-                  href={getWhatsAppLink(item.msg)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`bg-neutral-900/80 border border-neutral-800 hover:border-yellow-500/50 p-6 rounded-2xl flex items-center gap-4 transition-all hover:bg-neutral-800 group ${i >= 3 ? 'lg:col-span-1' : ''}`}
-                >
-                  <div className="w-12 h-12 rounded-full bg-neutral-950 flex items-center justify-center group-hover:bg-yellow-500/10 transition-colors shrink-0">
-                    <item.icon className="w-6 h-6 text-neutral-400 group-hover:text-yellow-500" />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="text-white font-semibold leading-tight mb-1">{item.title}</h4>
-                    <p className="text-xs text-neutral-500">{t.soporte.whatsapp}</p>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* 6 & 7. CONTACTO / CIERRE DE VENTA */}
-        <section className="py-24 bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-400 text-neutral-950 text-center px-4 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[url('/background.png')] opacity-10 mix-blend-overlay bg-cover bg-center"></div>
-          <div className="max-w-3xl mx-auto relative z-10">
-            <h2 className="text-4xl sm:text-5xl font-extrabold mb-6 tracking-tight drop-shadow-sm">{lang === 'es' ? '¿Listo para comenzar?' : 'Ready to start?'}</h2>
-            <p className="text-xl font-medium mb-10 opacity-90">
-              {lang === 'es' ? 'Contáctanos ahora y obtén acceso inmediato a Santiel TV. Resolvemos tus dudas y activamos tu servicio al instante.' : 'Contact us now and get immediate access to Santiel TV. We solve your doubts and activate your service instantly.'}
-            </p>
-            <a 
-              href={getWhatsAppLink(lang === 'es' ? "Hola, estoy listo para comenzar con Santiel TV. ¿Me pueden ayudar?" : "Hello, I'm ready to start with Santiel TV. Can you help me?")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-3 bg-neutral-950 hover:bg-neutral-800 text-white px-10 py-5 rounded-full font-bold text-xl transition-all hover:scale-105 shadow-2xl shadow-neutral-950/30"
-            >
-              <Phone className="w-6 h-6" />
-              {lang === 'es' ? 'Comprar por WhatsApp' : 'Buy via WhatsApp'}
-            </a>
-          </div>
-        </section>
+        <HeroSection t={t} />
+        <PlansSection t={t} lang={lang} currency={currency} />
+        <LoyaltySection t={t} lang={lang} />
+        <ContentSection t={t} />
+        <CompatibilitySection t={t} setActiveDownload={setActiveDownload} />
+        <AboutSection t={t} />
+        <SupportSection t={t} lang={lang} />
+        <CTASection lang={lang} />
       </main>
 
-      {/* 8. LEGALES (FOOTER) */}
-      <footer className="bg-neutral-950 border-t border-neutral-900 py-12 px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Santiel TV" className="h-6 w-auto opacity-80 grayscale hover:grayscale-0 transition-all" onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-            }} />
-            <div className="hidden flex items-center gap-2 text-yellow-500 opacity-80">
-              <Tv className="w-5 h-5" />
-              <span className="font-bold text-lg tracking-tight text-white">Santiel <span className="text-yellow-500">TV</span></span>
-            </div>
-          </div>
-          
-          <div className="flex gap-6 text-sm text-neutral-500">
-            <button 
-              onClick={() => setLegalModal({ type: 'terminos', isOpen: true })}
-              className="hover:text-neutral-300 transition-colors"
-            >
-              {t.footer.terminos}
-            </button>
-            <button 
-              onClick={() => setLegalModal({ type: 'privacidad', isOpen: true })}
-              className="hover:text-neutral-300 transition-colors"
-            >
-              {t.footer.privacidad}
-            </button>
-          </div>
-          
-          <p className="text-sm text-neutral-600">
-            &copy; {new Date().getFullYear()} Santiel TV. {t.footer.derechos}
-          </p>
-        </div>
-      </footer>
+      <Footer t={t} setLegalModal={setLegalModal} />
 
-      {/* Demo Modal */}
+      <PortalModal
+        showLoginModal={showLoginModal}
+        setShowLoginModal={setShowLoginModal}
+        portalUser={portalUser}
+        portalUsername={portalUsername}
+        setPortalUsername={setPortalUsername}
+        portalPassword={portalPassword}
+        setPortalPassword={setPortalPassword}
+        portalError={portalError}
+        isPortalLoading={isPortalLoading}
+        handlePortalLogin={handlePortalLogin}
+        handlePortalLogout={handlePortalLogout}
+        getDaysRemaining={getDaysRemaining}
+        getWhatsAppLink={getWhatsAppLink}
+      />
+
+      <DownloadModal
+        activeDownload={activeDownload}
+        setActiveDownload={setActiveDownload}
+        downloadPassword={downloadPassword}
+        setDownloadPassword={setDownloadPassword}
+        passwordError={passwordError}
+        isUnlocked={isUnlocked}
+        handleUnlock={handleUnlock}
+        closeDownloadModal={closeDownloadModal}
+      />
+
       <AnimatePresence>
         {showDemoModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowDemoModal(false)}
               className="absolute inset-0 bg-neutral-950/80 backdrop-blur-sm"
-            ></motion.div>
-            <motion.div 
+            />
+
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-[2rem] p-8 shadow-2xl overflow-hidden"
             >
               <div className="absolute top-0 right-0 p-4">
-                <button 
+                <button
                   onClick={() => setShowDemoModal(false)}
                   className="p-2 text-neutral-500 hover:text-white transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              
+
               <div className="flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center mb-6">
                   <Play className="w-8 h-8 text-yellow-500 fill-current" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-4">{t.demo.title}</h3>
+
+                <h3 className="text-2xl font-bold text-white mb-4">
+                  {t.demo.title}
+                </h3>
+
                 <p className="text-neutral-300 leading-relaxed mb-8">
                   {t.demo.desc}
                 </p>
-                
+
                 <div className="flex flex-col sm:flex-row gap-4 w-full">
-                  <a 
-                    href={getWhatsAppLink(lang === 'es' ? "Hola, me gustaría solicitar una demo para probar el servicio de Santiel TV por favor." : "Hello, I would like to request a demo to test the Santiel TV service please.")}
+                  <a
+                    href={getWhatsAppLink(
+                      lang === "es"
+                        ? "Hola, me gustaría solicitar una demo para probar el servicio de Santiel TV por favor."
+                        : "Hello, I would like to request a demo to test the Santiel TV service please."
+                    )}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setShowDemoModal(false)}
@@ -979,7 +518,8 @@ export default function App() {
                   >
                     {t.demo.btnSi}
                   </a>
-                  <button 
+
+                  <button
                     onClick={() => setShowDemoModal(false)}
                     className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-4 rounded-2xl font-bold transition-all"
                   >
@@ -992,130 +532,18 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Download Modal */}
-      <AnimatePresence>
-        {activeDownload && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeDownloadModal}
-              className="absolute inset-0 bg-neutral-950/80 backdrop-blur-sm"
-            ></motion.div>
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-[2rem] p-8 shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar"
-            >
-              <div className="absolute top-0 right-0 p-4">
-                <button 
-                  onClick={closeDownloadModal}
-                  className="p-2 text-neutral-500 hover:text-white transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              
-              <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center mb-6">
-                  <Download className="w-8 h-8 text-yellow-500" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-2">{t.descargas.title}</h3>
-                <p className="text-yellow-500 font-semibold mb-6">{downloadData[activeDownload].title}</p>
-                
-                {!isUnlocked ? (
-                  <div className="w-full space-y-4">
-                    <p className="text-sm text-neutral-400 text-center">
-                      {t.descargas.instrucciones}
-                    </p>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-                      <input 
-                        type="password"
-                        value={downloadPassword}
-                        onChange={(e) => setDownloadPassword(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-                        placeholder={t.descargas.passPlaceholder}
-                        className={`w-full bg-neutral-950 border ${passwordError ? 'border-red-500' : 'border-neutral-800'} rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-yellow-500 transition-colors`}
-                      />
-                    </div>
-                    {passwordError && (
-                      <p className="text-red-500 text-xs text-center font-medium">
-                        {t.descargas.errorPass}
-                      </p>
-                    )}
-                    <button 
-                      onClick={handleUnlock}
-                      className="w-full bg-yellow-500 hover:bg-yellow-400 text-neutral-950 py-3 rounded-xl font-bold transition-colors"
-                    >
-                      {t.descargas.btnDesbloquear}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-full space-y-6">
-                    {downloadData[activeDownload].link ? (
-                      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 text-center">
-                        <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                        <p className="text-white font-bold mb-4">Link desbloqueado con éxito</p>
-                        <a 
-                          href={downloadData[activeDownload].link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 text-neutral-950 px-8 py-3 rounded-xl font-bold transition-colors"
-                        >
-                          Ir a descarga <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <p className="text-white font-bold text-center mb-4">Canales para Roku TV:</p>
-                        <div className="grid grid-cols-1 gap-4">
-                          {downloadData[activeDownload].images?.map((img, idx) => (
-                            <div key={idx} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex flex-col items-center">
-                              <div className="w-full aspect-video bg-neutral-900 rounded-lg mb-3 flex items-center justify-center border border-neutral-800 overflow-hidden">
-                                <img 
-                                  src={`/${img.toLowerCase()}.png`} 
-                                  alt={img} 
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                    e.currentTarget.parentElement!.innerHTML = `<span class="text-neutral-500 font-bold">${img}</span>`;
-                                  }}
-                                />
-                              </div>
-                              <span className="text-yellow-500 font-bold">{img}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <button 
-                      onClick={closeDownloadModal}
-                      className="w-full bg-neutral-800 hover:bg-neutral-700 text-white py-3 rounded-xl font-bold transition-colors"
-                    >
-                      {t.descargas.btnCerrar}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-      {/* Legal Modal */}
       <AnimatePresence>
         {legalModal.isOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center px-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setLegalModal({ ...legalModal, isOpen: false })}
               className="absolute inset-0 bg-neutral-950/90 backdrop-blur-md"
-            ></motion.div>
-            <motion.div 
+            />
+
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -1123,31 +551,43 @@ export default function App() {
             >
               <div className="p-8 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/50 backdrop-blur-sm sticky top-0 z-10">
                 <h3 className="text-2xl font-bold text-white flex items-center gap-3">
-                  {legalModal.type === 'terminos' ? <ShieldCheck className="w-7 h-7 text-yellow-500" /> : <Lock className="w-7 h-7 text-yellow-500" />}
+                  {legalModal.type === "terminos" ? (
+                    <ShieldCheck className="w-7 h-7 text-yellow-500" />
+                  ) : (
+                    <Lock className="w-7 h-7 text-yellow-500" />
+                  )}
                   {t.legal[legalModal.type].title}
                 </h3>
-                <button 
+
+                <button
                   onClick={() => setLegalModal({ ...legalModal, isOpen: false })}
                   className="p-2 text-neutral-400 hover:text-white transition-colors hover:bg-neutral-800 rounded-full"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              
+
               <div className="p-8 overflow-y-auto custom-scrollbar flex-1 bg-neutral-950/30">
                 <div className="space-y-8">
-                  {t.legal[legalModal.type].sections.map((section, idx) => (
-                    <div key={idx} className="space-y-3">
-                      <h4 className="text-lg font-bold text-yellow-500 uppercase tracking-wider">{section.title}</h4>
-                      <div className="text-neutral-300 leading-relaxed whitespace-pre-line text-base sm:text-lg">
-                        {section.content}
+                  {t.legal[legalModal.type].sections.map(
+                    (section: any, idx: number) => (
+                      <div key={idx} className="space-y-3">
+                        <h4 className="text-lg font-bold text-yellow-500 uppercase tracking-wider">
+                          {section.title}
+                        </h4>
+                        <div className="text-neutral-300 leading-relaxed whitespace-pre-line text-base sm:text-lg">
+                          {section.content}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
-                
+
                 <div className="mt-12 pt-8 border-t border-neutral-800 text-center text-neutral-500 text-sm">
-                  Santiel TV &copy; {new Date().getFullYear()} - {lang === 'es' ? 'Documento Legal Oficial' : 'Official Legal Document'}
+                  Santiel TV &copy; {new Date().getFullYear()} -{" "}
+                  {lang === "es"
+                    ? "Documento Legal Oficial"
+                    : "Official Legal Document"}
                 </div>
               </div>
             </motion.div>
