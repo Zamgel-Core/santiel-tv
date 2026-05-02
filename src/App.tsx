@@ -333,50 +333,75 @@ export default function App() {
   const t = translations[lang];
 
   const handlePortalLogin = async () => {
-    setPortalError("");
-    setIsPortalLoading(true);
+  setPortalError("");
+  setIsPortalLoading(true);
 
-    const { data, error } = await supabase
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("username", portalUsername.trim())
+    .eq("password", portalPassword.trim())
+    .maybeSingle();
+
+  setIsPortalLoading(false);
+
+  if (error) {
+    console.error("Portal login error:", error);
+    setPortalError("Error de conexión. Intenta nuevamente.");
+    return;
+  }
+
+  if (!data) {
+    setPortalError("Usuario o contraseña incorrectos.");
+    return;
+  }
+
+  const isBlocked =
+    data.is_active === false ||
+    data.status === "blocked" ||
+    data.status === "bloqueada";
+
+  if (isBlocked) {
+    setPortalError("Esta cuenta no está activa. Contacta a soporte.");
+    return;
+  }
+
+  const isAdmin = data.role === "admin";
+  const accountType =
+    data.account_type === "demo" || data.is_trial === true
+      ? "demo"
+      : "customer";
+
+  if (!isAdmin && data.expiration_date) {
+  const expirationDate = new Date(data.expiration_date);
+  const now = new Date();
+
+  if (expirationDate < now) {
+    // 🔒 Auto bloquear en DB
+    await supabase
       .from("users")
-      .select("*")
-      .eq("username", portalUsername.trim())
-      .eq("password", portalPassword.trim())
-      .maybeSingle();
+      .update({
+        status: "blocked",
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", data.id);
 
-    setIsPortalLoading(false);
+    // 🧠 Detectar si era demo o cliente REAL
+    const isDemo = data.account_type === "demo" || data.is_trial === true;
 
-    if (error) {
-      console.error("Portal login error:", error);
-      setPortalError("Error de conexión. Intenta nuevamente.");
-      return;
-    }
+    setPortalError(
+      isDemo
+        ? "Tu demo ha expirado. Si deseas continuar, adquiere un plan en Santiel TV."
+        : "Tu cuenta está vencida. Renueva tu membresía."
+    );
 
-    if (!data) {
-      setPortalError("Usuario o contraseña incorrectos.");
-      return;
-    }
+    return;
+  }
+}
 
-    if (
-      data.is_active === false ||
-      data.status === "blocked" ||
-      data.status === "bloqueada"
-    ) {
-      setPortalError("Esta cuenta no está activa. Contacta a soporte.");
-      return;
-    }
-
-    if (data.expiration_date) {
-      const expirationDate = new Date(data.expiration_date);
-      const today = new Date();
-
-      if (expirationDate < today) {
-        setPortalError("Tu cuenta está vencida. Renueva tu membresía.");
-        return;
-      }
-    }
-
-    setPortalUser(data);
-  };
+  setPortalUser(data);
+};
 
   const handlePortalLogout = () => {
     setPortalUser(null);

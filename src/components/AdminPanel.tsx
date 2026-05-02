@@ -235,33 +235,38 @@ export default function AdminPanel() {
   };
 
   const convertDemoToCustomer = async (user: any, months: number) => {
-    const newExpiration = addMonths(new Date(), months);
+  const newExpiration = addMonths(new Date(), months);
 
-    const { error } = await supabase
-      .from("users")
-      .update({
-        account_type: "customer",
-        is_trial: false,
-        converted_from_demo: true,
-        demo_duration_hours: null,
-        plan_months: months,
-        plan: getPlanLabel(months),
-        expiration_date: newExpiration.toISOString(),
-        status: "active",
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", user.id);
+  const { error } = await supabase
+    .from("users")
+    .update({
+      account_type: "customer",
+      is_trial: false,
+      converted_from_demo: true,
+      demo_duration_hours: null,
+      plan_months: months,
+      plan: getPlanLabel(months),
+      expiration_date: newExpiration.toISOString(),
+      status: "active",
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
 
-    if (error) {
-      console.error("Error convirtiendo demo:", error);
-      setMessage("Error convirtiendo demo a cliente.");
-      return;
-    }
+  if (error) {
+    console.error("Error convirtiendo demo:", error);
+    setMessage("Error convirtiendo demo a cliente.");
+    return;
+  }
 
-    setMessage(`Demo ${user.username} convertido a cliente final.`);
-    fetchUsers();
-  };
+  setMessage(
+    `Demo ${user.username} convertido a cliente final por ${months} mes${
+      months > 1 ? "es" : ""
+    }.`
+  );
+
+  fetchUsers();
+};
 
   const toggleBlockUser = async (user: any) => {
     if (user.role === "admin") {
@@ -672,79 +677,81 @@ export default function AdminPanel() {
                     </div>
 
                     <div className="flex flex-col gap-3 xl:items-end">
-                      <div className="flex flex-wrap gap-2">
-                        {quickMonths.map((month) => (
-                          <button
-                            key={month}
-                            onClick={() => addTimeToUser(user, month)}
-                            className="rounded-xl bg-yellow-500 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-400"
-                          >
-                            +{month} mes{month > 1 ? "es" : ""}
-                          </button>
-                        ))}
-                      </div>
+  {accountType === "customer" && (
+    <div className="flex flex-wrap gap-2">
+      {quickMonths.map((month) => (
+        <button
+          key={month}
+          onClick={() => addTimeToUser(user, month)}
+          className="rounded-xl bg-yellow-500 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-400"
+        >
+          +{month} mes{month > 1 ? "es" : ""}
+        </button>
+      ))}
+    </div>
+  )}
 
-                      <div className="flex flex-wrap gap-2">
-                        <select
-                          value={selectedMonths}
-                          onChange={(e) =>
-                            updateSelectedMonths(user.id, Number(e.target.value))
-                          }
-                          className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-yellow-500"
-                        >
-                          {monthOptions.map((month) => (
-                            <option key={month} value={month}>
-                              {month} mes{month > 1 ? "es" : ""}
-                            </option>
-                          ))}
-                        </select>
+  <div className="flex flex-wrap gap-2">
+    <select
+      value={selectedMonths}
+      onChange={(e) =>
+        updateSelectedMonths(user.id, Number(e.target.value))
+      }
+      className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-yellow-500"
+    >
+      {monthOptions.map((month) => (
+        <option key={month} value={month}>
+          {month} mes{month > 1 ? "es" : ""}
+        </option>
+      ))}
+    </select>
 
-                        {accountType === "demo" ? (
-                          <button
-                            onClick={() => convertDemoToCustomer(user, selectedMonths)}
-                            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500"
-                          >
-                            Convertir a cliente
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => addTimeToUser(user, selectedMonths)}
-                            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500"
-                          >
-                            Agregar tiempo
-                          </button>
-                        )}
+    {accountType === "demo" ? (
+      <button
+        onClick={() => convertDemoToCustomer(user, selectedMonths)}
+        className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500"
+      >
+        Convertir a cliente
+      </button>
+    ) : (
+      <button
+        onClick={() => addTimeToUser(user, selectedMonths)}
+        className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500"
+      >
+        Agregar tiempo
+      </button>
+    )}
 
-                        <button
-                          onClick={() => startEdit(user)}
-                          className="rounded-xl bg-neutral-800 px-4 py-2 text-sm font-bold text-white hover:bg-neutral-700"
-                        >
-                          Editar
-                        </button>
+    <button
+      onClick={() => startEdit(user)}
+      className="rounded-xl bg-neutral-800 px-4 py-2 text-sm font-bold text-white hover:bg-neutral-700"
+    >
+      Editar
+    </button>
 
-                        {user.phone && (
-                          <a
-                            href={getWhatsAppCustomerLink(user)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white hover:bg-green-600"
-                          >
-                            WhatsApp
-                          </a>
-                        )}
+    {user.phone && (
+      <a
+        href={getWhatsAppCustomerLink(user)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white hover:bg-green-600"
+      >
+        WhatsApp
+      </a>
+    )}
 
-                        <button
-                          onClick={() => toggleBlockUser(user)}
-                          className={`rounded-xl px-4 py-2 text-sm font-bold ${
-                            blocked
-                              ? "bg-green-600 text-white hover:bg-green-500"
-                              : "bg-red-600 text-white hover:bg-red-500"
-                          }`}
-                        >
-                          {blocked ? "Desbloquear" : "Bloquear"}
-                        </button>
-                      </div>
-                    </div>
+    <button
+      onClick={() => toggleBlockUser(user)}
+      className={`rounded-xl px-4 py-2 text-sm font-bold ${
+        blocked
+          ? "bg-green-600 text-white hover:bg-green-500"
+          : "bg-red-600 text-white hover:bg-red-500"
+      }`}
+    >
+      {blocked ? "Desbloquear" : "Bloquear"}
+    </button>
+  </div>
+</div>
                   </div>
                 ) : (
                   <div className="space-y-4">
