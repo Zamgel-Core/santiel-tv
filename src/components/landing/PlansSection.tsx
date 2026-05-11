@@ -82,7 +82,7 @@ export default function PlansSection({ t, lang, currency }: Props) {
 
             <div className="mb-8 mt-2">
               <h3 className="text-xl font-semibold text-yellow-500 mb-2">
-                {lang === "es" ? "Plan 3 Meses" : "3 Months Plan"}
+                {lang === "es" ? "Plan 4 Meses" : "4 Months Plan"}
               </h3>
 
               <div className="flex items-baseline gap-2">
@@ -122,10 +122,10 @@ export default function PlansSection({ t, lang, currency }: Props) {
             <a
               href={getWhatsAppLink(
                 lang === "es"
-                  ? `Hola, quiero aprovechar la Mejor Oferta: Plan de 3 meses por ${
+                  ? `Hola, quiero aprovechar la Mejor Oferta: Plan de 4 meses por ${
                       currency === "USD" ? "$35 USD" : "$450 MXN"
                     }.`
-                  : `Hello, I want to take advantage of the Best Offer: 3 Months Plan for ${
+                  : `Hello, I want to take advantage of the Best Offer: 4 Months Plan for ${
                       currency === "USD" ? "$35 USD" : "$450 MXN"
                     }.`
               )}
