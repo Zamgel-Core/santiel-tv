@@ -1,9 +1,19 @@
+//📍 Ruta: src/services/raffles/raffleEntries.ts
+
 import { supabase } from "../../lib/supabaseClient";
 
 export type CreateRaffleEntryInput = {
   name: string;
   phone: string;
   referralCode?: string;
+};
+
+export type CreateRaffleEntryResult = {
+  success: boolean;
+  raffle_title: string;
+  tickets: number;
+  user_type: "guest" | "free" | "premium" | string;
+  message: string;
 };
 
 export async function createRaffleEntry(input: CreateRaffleEntryInput) {
@@ -19,58 +29,29 @@ export async function createRaffleEntry(input: CreateRaffleEntryInput) {
     throw new Error("Ingresa tu teléfono.");
   }
 
-  const { data: activeRaffle, error: raffleError } = await supabase
-    .from("raffles")
-    .select("id, title, status")
-    .eq("status", "active")
-    .order("created_at", { ascending: false })
-    .limit(1)
+  const { data, error } = await supabase
+    .rpc("create_raffle_entry_public", {
+      p_name: cleanName,
+      p_phone: cleanPhone,
+      p_referral_code: cleanReferral,
+    })
     .maybeSingle();
 
-  if (raffleError) {
-    throw new Error("No se pudo verificar el sorteo activo.");
+  if (error) {
+    throw new Error(error.message || "No se pudo guardar tu participación.");
   }
 
-  if (!activeRaffle) {
-    throw new Error("No hay sorteo activo por el momento.");
-  }
+  const result = data as CreateRaffleEntryResult | null;
 
-  const { data: existingEntry, error: existingError } = await supabase
-    .from("raffle_entries")
-    .select("id")
-    .eq("raffle_id", activeRaffle.id)
-    .eq("phone", cleanPhone)
-    .maybeSingle();
-
-  if (existingError) {
-    throw new Error("No se pudo verificar tu participación.");
-  }
-
-  if (existingEntry) {
-    throw new Error("Este teléfono ya está participando en el sorteo activo.");
-  }
-
-  const tickets = cleanReferral ? 2 : 1;
-
-  const { error: insertError } = await supabase.from("raffle_entries").insert({
-    raffle_id: activeRaffle.id,
-    username: cleanName,
-    phone: cleanPhone,
-    customer_code: cleanReferral,
-    entry_type: cleanReferral ? "referral" : "public",
-    tickets,
-    note: cleanReferral
-      ? `Participación con referido ${cleanReferral}`
-      : "Participación pública desde la landing",
-  });
-
-  if (insertError) {
+  if (!result?.success) {
     throw new Error("No se pudo guardar tu participación.");
   }
 
   return {
-    success: true,
-    raffleTitle: activeRaffle.title,
-    tickets,
+    success: result.success,
+    raffleTitle: result.raffle_title,
+    tickets: result.tickets,
+    userType: result.user_type,
+    message: result.message,
   };
 }
