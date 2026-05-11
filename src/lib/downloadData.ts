@@ -10,7 +10,7 @@ export const downloadData: Record<
   apple: {
     title: "Apple iOS",
     link: "https://apps.apple.com/us/app/aztk-play/id1662070685",
-    pass: "Santielapple2026",
+    pass: "SantielApple1103",
   },
   roku: {
     title: "Roku TV",
@@ -20,6 +20,6 @@ export const downloadData: Record<
   pc: {
     title: "PC / Mac",
     link: "https://www.mediafire.com/file/urdb1l3cf7yvpoe/iptv-smarters-pro-1-1-2.exe/file",
-    pass: "SantielPc2026",
+    pass: "SantielPC2026",
   },
 };

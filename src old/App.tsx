@@ -2,28 +2,25 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, X, ShieldCheck, Lock } from "lucide-react";
 
-import { supabase } from "./lib/supabaseClient";
+import { supabase } from "./supabaseClient";
 
-import { getWhatsAppLink } from "./lib/whatsapp";
-import { getDaysRemaining } from "./lib/dates";
+import { getWhatsAppLink } from "./utils/whatsapp";
+import { getDaysRemaining } from "./utils/dates";
+import { downloadData } from "../src/data/downloadData";
 
-import { downloadData } from "./data/downloadData";
+import Navbar from "./components/Navbar";
+import HeroSection from "./components/HeroSection";
+import PlansSection from "./components/PlansSection";
+import LoyaltySection from "./components/LoyaltySection";
+import ContentSection from "./components/ContentSection";
+import CompatibilitySection from "./components/CompatibilitySection";
+import AboutSection from "./components/AboutSection";
+import SupportSection from "./components/SupportSection";
+import CTASection from "./components/CTASection";
+import Footer from "./components/Footer";
 
-import Navbar from "./components/layout/Navbar";
-import Footer from "./components/layout/Footer";
-
-import HeroSection from "./components/landing/HeroSection";
-import PlansSection from "./components/landing/PlansSection";
-import LoyaltySection from "./components/landing/LoyaltySection";
-import CompatibilitySection from "./components/landing/CompatibilitySection";
-import SupportSection from "./components/landing/SupportSection";
-
-import PortalModal from "./components/portal/PortalModal";
-
-import AboutSection from "./components/ui/AboutSection";
-import ContentSection from "./components/ui/ContentSection";
-import CTASection from "./components/ui/CTASection";
-import DownloadModal from "./components/ui/DownloadModal";
+import PortalModal from "./components/PortalModal";
+import DownloadModal from "./components/DownloadModal";
 
 const translations = {
   es: {

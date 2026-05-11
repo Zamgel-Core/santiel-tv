@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Download, Lock, CheckCircle2, ExternalLink } from "lucide-react";
-import { downloadData } from "../data/downloadData";
+import { downloadData } from "../../src/data/downloadData";
 
 type Props = {
   activeDownload: string | null;
