@@ -1,5 +1,4 @@
-// 📍 Ruta: src/components/raffles/RaffleSection.tsx
-
+//📍 Ruta: src/components/raffles/RaffleSection.tsx
 import { useState } from "react";
 import {
   Gift,
@@ -13,11 +12,48 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { createRaffleEntry } from "../../services/raffles/raffleEntries";
+
 export default function RaffleSection() {
   const [participateOpen, setParticipateOpen] = useState(false);
 
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [referralCode, setReferralCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
   const isPremium = true;
   const tickets = isPremium ? 12 : 3;
+
+  const handleCreateEntry = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      setMessage("");
+
+      const result = await createRaffleEntry({
+        name,
+        phone,
+        referralCode,
+      });
+
+      setMessage(
+        `¡Listo! Generaste ${result.tickets} boleto(s) para ${result.raffleTitle}.`
+      );
+
+      setName("");
+      setPhone("");
+      setReferralCode("");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Ocurrió un error inesperado."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <section className="pt-2 pb-16 md:pb-24 px-4 -mt-10">
@@ -66,7 +102,11 @@ export default function RaffleSection() {
               <div className="flex flex-wrap gap-4">
                 <button
                   type="button"
-                  onClick={() => setParticipateOpen(true)}
+                  onClick={() => {
+                    setParticipateOpen(true);
+                    setMessage("");
+                    setError("");
+                  }}
                   className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-8 py-4 rounded-2xl transition"
                 >
                   Participar
@@ -164,6 +204,8 @@ export default function RaffleSection() {
                     <User className="w-5 h-5 text-yellow-400" />
                     <input
                       type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
                       placeholder="Tu nombre"
                       className="w-full bg-transparent text-white outline-none placeholder:text-neutral-500"
                     />
@@ -178,6 +220,8 @@ export default function RaffleSection() {
                     <Phone className="w-5 h-5 text-yellow-400" />
                     <input
                       type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
                       placeholder="Ej. 8321234567"
                       className="w-full bg-transparent text-white outline-none placeholder:text-neutral-500"
                     />
@@ -192,6 +236,10 @@ export default function RaffleSection() {
                     <BadgePercent className="w-5 h-5 text-yellow-400" />
                     <input
                       type="text"
+                      value={referralCode}
+                      onChange={(e) =>
+                        setReferralCode(e.target.value.toUpperCase())
+                      }
                       placeholder="Ej. SAN-8F42"
                       className="w-full bg-transparent text-white outline-none placeholder:text-neutral-500 uppercase"
                     />
@@ -200,15 +248,29 @@ export default function RaffleSection() {
 
                 <button
                   type="button"
-                  className="w-full rounded-2xl bg-yellow-500 px-6 py-4 font-black text-black hover:bg-yellow-400 transition"
+                  onClick={handleCreateEntry}
+                  disabled={loading}
+                  className="w-full rounded-2xl bg-yellow-500 px-6 py-4 font-black text-black hover:bg-yellow-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Generar boletos
+                  {loading ? "Generando boletos..." : "Generar boletos"}
                 </button>
+
+                {message ? (
+                  <div className="rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm font-medium text-green-300">
+                    {message}
+                  </div>
+                ) : null}
+
+                {error ? (
+                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300">
+                    {error}
+                  </div>
+                ) : null}
               </form>
 
               <p className="text-xs text-neutral-500 mt-5 text-center">
-                Próximo paso: conectar este formulario a Supabase para guardar
-                entradas reales.
+                Próximo paso: conectar este formulario a sistema premium,
+                referidos y boletos acumulados.
               </p>
             </motion.div>
           </motion.div>
