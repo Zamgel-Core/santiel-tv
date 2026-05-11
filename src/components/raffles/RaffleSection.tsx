@@ -1,4 +1,3 @@
-//📍 Ruta: src/components/raffles/RaffleSection.tsx
 import { useState } from "react";
 import {
   Gift,
