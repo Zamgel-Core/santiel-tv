@@ -25,6 +25,8 @@ import ContentSection from "./components/ui/ContentSection";
 import CTASection from "./components/ui/CTASection";
 import DownloadModal from "./components/ui/DownloadModal";
 
+import RaffleSection from "./components/raffles/RaffleSection";
+
 const translations = {
   es: {
     nav: {
@@ -454,15 +456,31 @@ export default function App() {
       />
 
       <main>
-        <HeroSection t={t} />
-        <PlansSection t={t} lang={lang} currency={currency} />
-        <LoyaltySection t={t} lang={lang} />
-        <ContentSection t={t} />
-        <CompatibilitySection t={t} setActiveDownload={setActiveDownload} />
-        <AboutSection t={t} />
-        <SupportSection t={t} lang={lang} />
-        <CTASection lang={lang} />
-      </main>
+  <HeroSection t={t} />
+
+  <RaffleSection />
+
+  <PlansSection
+    t={t}
+    lang={lang}
+    currency={currency}
+  />
+
+  <LoyaltySection t={t} lang={lang} />
+
+  <ContentSection t={t} />
+
+  <CompatibilitySection
+    t={t}
+    setActiveDownload={setActiveDownload}
+  />
+
+  <AboutSection t={t} />
+
+  <SupportSection t={t} lang={lang} />
+
+  <CTASection lang={lang} />
+</main>
 
       <Footer t={t} setLegalModal={setLegalModal} />
 
