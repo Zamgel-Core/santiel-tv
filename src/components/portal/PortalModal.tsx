@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X, UserCog } from "lucide-react";
 
 import AdminPanel from "../admin/AdminPanel";
-import CustomerPanel from "../../components/portal/CustomerPanel";
+import CustomerPanel from "./CustomerPanel";
 
 type PortalModalProps = {
   showLoginModal: boolean;
