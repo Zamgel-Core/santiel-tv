@@ -20,18 +20,26 @@ export async function loginPortalWithPin(phone: string, pin: string) {
   const cleanPhone = phone.trim();
   const cleanPin = pin.trim();
 
-  if (!cleanPhone) throw new Error("Ingresa tu teléfono.");
-  if (!cleanPin) throw new Error("Ingresa tu PIN.");
+  if (!cleanPhone) {
+    throw new Error("Ingresa tu teléfono.");
+  }
 
-  const { data, error } = await supabase
-    .rpc("portal_login_by_phone_pin", {
-      p_phone: cleanPhone,
-      p_pin: cleanPin,
-    })
-    .maybeSingle();
+  if (!cleanPin) {
+    throw new Error("Ingresa tu PIN.");
+  }
 
-  if (error) throw new Error(error.message || "No se pudo iniciar sesión.");
-  if (!data) throw new Error("Teléfono o PIN incorrecto.");
+  const { data, error } = await supabase.rpc("portal_login_by_phone_pin", {
+    p_phone: cleanPhone,
+    p_pin: cleanPin,
+  });
+
+  if (error) {
+    throw new Error(error.message || "No se pudo iniciar sesión.");
+  }
+
+  if (!data) {
+    throw new Error("Teléfono o PIN incorrecto.");
+  }
 
   return data as PortalUser;
 }
@@ -47,8 +55,13 @@ export async function changePortalPin(
   const cleanNewPin = newPin.trim();
   const cleanConfirmPin = confirmPin.trim();
 
-  if (!cleanPhone) throw new Error("Ingresa tu teléfono.");
-  if (!cleanOldPin) throw new Error("Ingresa tu PIN actual.");
+  if (!cleanPhone) {
+    throw new Error("Ingresa tu teléfono.");
+  }
+
+  if (!cleanOldPin) {
+    throw new Error("Ingresa tu PIN actual.");
+  }
 
   if (!/^[0-9]{4,6}$/.test(cleanNewPin)) {
     throw new Error("Tu nuevo PIN debe tener de 4 a 6 números.");
@@ -62,15 +75,15 @@ export async function changePortalPin(
     throw new Error("Por seguridad, el nuevo PIN no puede ser 0000.");
   }
 
-  const { data, error } = await supabase
-    .rpc("change_portal_pin", {
-      p_phone: cleanPhone,
-      p_old_pin: cleanOldPin,
-      p_new_pin: cleanNewPin,
-    })
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("change_portal_pin", {
+    p_phone: cleanPhone,
+    p_old_pin: cleanOldPin,
+    p_new_pin: cleanNewPin,
+  });
 
-  if (error) throw new Error(error.message || "No se pudo cambiar el PIN.");
+  if (error) {
+    throw new Error(error.message || "No se pudo cambiar el PIN.");
+  }
 
   return data as { success: boolean; message: string };
 }

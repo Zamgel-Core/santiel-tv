@@ -1,3 +1,5 @@
+//📍 Ruta: src/components/admin/AdminPanel.tsx
+
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { getDaysRemaining } from "../../lib/dates";
@@ -14,12 +16,15 @@ type FilterType =
   | "customer";
 
 type NewUserForm = {
+  customer_name: string;
   username: string;
   password: string;
   account_type: AccountType;
   months: number;
   demoHours: number;
   phone: string;
+  expiration_date: string;
+  device_type: string;
   device_mac: string;
   device_key: string;
   notes: string;
@@ -28,6 +33,22 @@ type NewUserForm = {
 const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1);
 const quickMonths = [1, 2, 3, 4, 6, 12];
 const demoHourOptions = [1, 2, 4];
+
+const deviceOptions = [
+  "Roku TV",
+  "Android",
+  "Santiel TV",
+  "Fire TV",
+  "Smart TV",
+  "Otro",
+];
+
+const createSantielCode = () => {
+  const randomPart = Math.random().toString(16).slice(2, 6).toUpperCase();
+  return `SAN-${randomPart}`;
+};
+
+const cleanPhoneNumber = (phone: string) => phone.replace(/\D/g, "");
 
 export default function AdminPanel() {
   const [users, setUsers] = useState<any[]>([]);
@@ -46,12 +67,15 @@ export default function AdminPanel() {
   >({});
 
   const [newUser, setNewUser] = useState<NewUserForm>({
+    customer_name: "",
     username: "",
     password: "",
     account_type: "customer",
     months: 1,
     demoHours: 1,
     phone: "",
+    expiration_date: "",
+    device_type: "Roku TV",
     device_mac: "",
     device_key: "",
     notes: "",
@@ -115,13 +139,19 @@ export default function AdminPanel() {
     return "customer";
   };
 
+  const getCustomerName = (user: any) => {
+    return user.customer_name || user.full_name || user.name || user.username || "Cliente";
+  };
+
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const query = search.toLowerCase();
 
       const matchesSearch =
+        user.customer_name?.toLowerCase().includes(query) ||
         user.username?.toLowerCase().includes(query) ||
         user.phone?.toLowerCase().includes(query) ||
+        user.device_type?.toLowerCase().includes(query) ||
         user.device_mac?.toLowerCase().includes(query) ||
         user.device_key?.toLowerCase().includes(query);
 
@@ -141,22 +171,40 @@ export default function AdminPanel() {
   const createUser = async () => {
     setMessage("");
 
-    if (!newUser.username.trim() || !newUser.password.trim()) {
-      setMessage("Usuario y contraseña son obligatorios.");
+    const customerName = newUser.customer_name.trim();
+    const appUsername = newUser.username.trim();
+    const appPassword = newUser.password.trim();
+    const cleanPhone = cleanPhoneNumber(newUser.phone);
+
+    if (!customerName) {
+      setMessage("Nombre del cliente es obligatorio.");
+      return;
+    }
+
+    if (!appUsername || !appPassword) {
+      setMessage("Usuario app y contraseña app son obligatorios.");
+      return;
+    }
+
+    if (!cleanPhone || cleanPhone.length < 10) {
+      setMessage("Teléfono / WhatsApp válido es obligatorio.");
       return;
     }
 
     const isDemo = newUser.account_type === "demo";
 
-    const expirationDate = isDemo
-      ? addHours(new Date(), newUser.demoHours).toISOString()
-      : addMonths(new Date(), newUser.months).toISOString();
+    const expirationDate = newUser.expiration_date
+      ? new Date(newUser.expiration_date).toISOString()
+      : isDemo
+        ? addHours(new Date(), newUser.demoHours).toISOString()
+        : addMonths(new Date(), newUser.months).toISOString();
 
     setIsCreating(true);
 
     const { error } = await supabase.from("users").insert({
-      username: newUser.username.trim(),
-      password: newUser.password.trim(),
+      customer_name: customerName,
+      username: appUsername,
+      password: appPassword,
       role: "customer",
       account_type: isDemo ? "demo" : "customer",
       status: "active",
@@ -166,11 +214,18 @@ export default function AdminPanel() {
       plan_months: isDemo ? null : newUser.months,
       converted_from_demo: false,
       expiration_date: expirationDate,
-      phone: newUser.phone.trim(),
+      phone: cleanPhone,
       plan: isDemo ? getDemoLabel(newUser.demoHours) : getPlanLabel(newUser.months),
+      device_type: newUser.device_type,
       device_mac: newUser.device_mac.trim(),
       device_key: newUser.device_key.trim(),
       notes: newUser.notes.trim(),
+      portal_pin: "0000",
+      must_change_pin: true,
+      customer_code: createSantielCode(),
+      referral_code: createSantielCode(),
+      total_tickets: 0,
+      activity_points: 0,
       updated_at: new Date().toISOString(),
     });
 
@@ -178,17 +233,20 @@ export default function AdminPanel() {
 
     if (error) {
       console.error("Error creando usuario:", error);
-      setMessage("Error creando usuario.");
+      setMessage(`Error creando usuario: ${error.message}`);
       return;
     }
 
     setNewUser({
+      customer_name: "",
       username: "",
       password: "",
       account_type: "customer",
       months: 1,
       demoHours: 1,
       phone: "",
+      expiration_date: "",
+      device_type: "Roku TV",
       device_mac: "",
       device_key: "",
       notes: "",
@@ -230,43 +288,43 @@ export default function AdminPanel() {
       return;
     }
 
-    setMessage(`Se agregaron ${months} mes${months > 1 ? "es" : ""} a ${user.username}.`);
+    setMessage(`Se agregaron ${months} mes${months > 1 ? "es" : ""} a ${getCustomerName(user)}.`);
     fetchUsers();
   };
 
   const convertDemoToCustomer = async (user: any, months: number) => {
-  const newExpiration = addMonths(new Date(), months);
+    const newExpiration = addMonths(new Date(), months);
 
-  const { error } = await supabase
-    .from("users")
-    .update({
-      account_type: "customer",
-      is_trial: false,
-      converted_from_demo: true,
-      demo_duration_hours: null,
-      plan_months: months,
-      plan: getPlanLabel(months),
-      expiration_date: newExpiration.toISOString(),
-      status: "active",
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+    const { error } = await supabase
+      .from("users")
+      .update({
+        account_type: "customer",
+        is_trial: false,
+        converted_from_demo: true,
+        demo_duration_hours: null,
+        plan_months: months,
+        plan: getPlanLabel(months),
+        expiration_date: newExpiration.toISOString(),
+        status: "active",
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
 
-  if (error) {
-    console.error("Error convirtiendo demo:", error);
-    setMessage("Error convirtiendo demo a cliente.");
-    return;
-  }
+    if (error) {
+      console.error("Error convirtiendo demo:", error);
+      setMessage("Error convirtiendo demo a cliente.");
+      return;
+    }
 
-  setMessage(
-    `Demo ${user.username} convertido a cliente final por ${months} mes${
-      months > 1 ? "es" : ""
-    }.`
-  );
+    setMessage(
+      `Demo ${getCustomerName(user)} convertido a cliente final por ${months} mes${
+        months > 1 ? "es" : ""
+      }.`
+    );
 
-  fetchUsers();
-};
+    fetchUsers();
+  };
 
   const toggleBlockUser = async (user: any) => {
     if (user.role === "admin") {
@@ -295,22 +353,46 @@ export default function AdminPanel() {
     fetchUsers();
   };
 
+  const resetPortalPin = async (user: any) => {
+    const { error } = await supabase
+      .from("users")
+      .update({
+        portal_pin: "0000",
+        must_change_pin: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      console.error("Error reiniciando PIN:", error);
+      setMessage("Error reiniciando PIN.");
+      return;
+    }
+
+    setMessage(`PIN de ${getCustomerName(user)} reiniciado a 0000.`);
+    fetchUsers();
+  };
+
   const startEdit = (user: any) => {
     const accountType = getAccountType(user);
 
     setEditingId(user.id);
     setEditForm({
+      customer_name: user.customer_name || "",
       username: user.username || "",
       password: user.password || "",
       phone: user.phone || "",
       account_type: accountType,
       plan_months: user.plan_months || 1,
       demo_duration_hours: user.demo_duration_hours || 1,
+      device_type: user.device_type || "Roku TV",
       device_mac: user.device_mac || "",
       device_key: user.device_key || "",
       notes: user.notes || "",
       role: user.role || "customer",
       status: user.status || "active",
+      portal_pin: user.portal_pin || "0000",
+      must_change_pin: user.must_change_pin ?? true,
       expiration_date: user.expiration_date
         ? user.expiration_date.slice(0, 16)
         : "",
@@ -330,34 +412,41 @@ export default function AdminPanel() {
     const { error } = await supabase
       .from("users")
       .update({
+        customer_name: editForm.customer_name.trim(),
         username: editForm.username.trim(),
         password: editForm.password.trim(),
-        phone: editForm.phone.trim(),
+        phone: cleanPhoneNumber(editForm.phone),
         account_type: editForm.account_type,
         is_trial: isDemo,
         demo_duration_hours: isDemo ? demoHours : null,
         plan_months: isDemo ? null : planMonths,
         plan: isDemo ? getDemoLabel(demoHours) : getPlanLabel(planMonths),
+        device_type: editForm.device_type,
         device_mac: editForm.device_mac.trim(),
         device_key: editForm.device_key.trim(),
         notes: editForm.notes.trim(),
         role: editForm.role,
         status: editForm.status,
         is_active: editForm.status === "blocked" ? false : true,
+        portal_pin: editForm.portal_pin || "0000",
+        must_change_pin: Boolean(editForm.must_change_pin),
         expiration_date: editForm.expiration_date
           ? new Date(editForm.expiration_date).toISOString()
           : null,
+        customer_code: user.customer_code || createSantielCode(),
+        referral_code: user.referral_code || createSantielCode(),
+        total_tickets: user.total_tickets ?? 0,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
 
     if (error) {
       console.error("Error guardando usuario:", error);
-      setMessage("Error guardando cambios.");
+      setMessage(`Error guardando cambios: ${error.message}`);
       return;
     }
 
-    setMessage(`Usuario ${editForm.username} actualizado correctamente.`);
+    setMessage(`Usuario ${editForm.customer_name || editForm.username} actualizado correctamente.`);
     cancelEdit();
     fetchUsers();
   };
@@ -370,8 +459,9 @@ export default function AdminPanel() {
   };
 
   const getWhatsAppCustomerLink = (user: any) => {
+    const name = getCustomerName(user);
     return getWhatsAppLink(
-      `Hola ${user.username}, te contacto de Santiel TV sobre tu cuenta.`
+      `Hola ${name}, te contacto de Santiel TV sobre tu cuenta.`
     );
   };
 
@@ -380,7 +470,7 @@ export default function AdminPanel() {
       <div>
         <h3 className="text-2xl font-bold text-white">Panel Super Admin</h3>
         <p className="text-neutral-400 text-sm">
-          Gestión avanzada de usuarios, demos, dispositivos y membresías.
+          Gestión avanzada de clientes, cuentas, sorteos y membresías.
         </p>
       </div>
 
@@ -427,20 +517,36 @@ export default function AdminPanel() {
       </div>
 
       <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-5">
-        <h4 className="mb-4 font-bold text-white">Crear nuevo usuario</h4>
+        <h4 className="mb-4 font-bold text-white">Crear nuevo cliente</h4>
 
         <div className="grid gap-3 md:grid-cols-4">
           <input
+            value={newUser.customer_name}
+            onChange={(e) =>
+              setNewUser({ ...newUser, customer_name: e.target.value })
+            }
+            placeholder="Nombre del cliente"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
+          />
+
+          <input
+            value={newUser.phone}
+            onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+            placeholder="Teléfono / WhatsApp"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
+          />
+
+          <input
             value={newUser.username}
             onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-            placeholder="Usuario"
+            placeholder="Usuario app"
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
           />
 
           <input
             value={newUser.password}
             onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-            placeholder="Contraseña"
+            placeholder="Contraseña app"
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
           />
 
@@ -489,23 +595,40 @@ export default function AdminPanel() {
           )}
 
           <input
-            value={newUser.phone}
-            onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-            placeholder="Teléfono / WhatsApp"
+            type="datetime-local"
+            value={newUser.expiration_date}
+            onChange={(e) =>
+              setNewUser({ ...newUser, expiration_date: e.target.value })
+            }
+            placeholder="Fecha de expiración"
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
           />
+
+          <select
+            value={newUser.device_type}
+            onChange={(e) =>
+              setNewUser({ ...newUser, device_type: e.target.value })
+            }
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
+          >
+            {deviceOptions.map((device) => (
+              <option key={device} value={device}>
+                {device}
+              </option>
+            ))}
+          </select>
 
           <input
             value={newUser.device_mac}
             onChange={(e) => setNewUser({ ...newUser, device_mac: e.target.value })}
-            placeholder="MAC del dispositivo"
+            placeholder="MAC opcional"
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
           />
 
           <input
             value={newUser.device_key}
             onChange={(e) => setNewUser({ ...newUser, device_key: e.target.value })}
-            placeholder="Device Key"
+            placeholder="Device Key opcional"
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
           />
 
@@ -513,7 +636,7 @@ export default function AdminPanel() {
             value={newUser.notes}
             onChange={(e) => setNewUser({ ...newUser, notes: e.target.value })}
             placeholder="Notas internas"
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500 md:col-span-2"
           />
 
           <button
@@ -524,10 +647,15 @@ export default function AdminPanel() {
             {isCreating
               ? "Creando..."
               : newUser.account_type === "demo"
-              ? "Crear demo"
-              : "Crear cliente"}
+                ? "Crear demo"
+                : "Crear cliente"}
           </button>
         </div>
+
+        <p className="mt-3 text-xs text-neutral-500">
+          Al crear un cliente se asigna automáticamente PIN portal 0000, código
+          de cliente y código de referido.
+        </p>
 
         {message && (
           <p className="mt-4 rounded-xl bg-neutral-900 px-4 py-3 text-sm text-yellow-400">
@@ -540,7 +668,7 @@ export default function AdminPanel() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por usuario, teléfono, MAC o Key..."
+          placeholder="Buscar por cliente, usuario app, teléfono, dispositivo, MAC o Key..."
           className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
         />
 
@@ -576,6 +704,7 @@ export default function AdminPanel() {
             const editing = editingId === user.id;
             const accountType = getAccountType(user);
             const selectedMonths = selectedMonthsByUser[user.id] || 1;
+            const customerName = getCustomerName(user);
 
             return (
               <div
@@ -586,7 +715,7 @@ export default function AdminPanel() {
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div className="space-y-1">
                       <h4 className="font-bold text-white">
-                        {user.username}
+                        {customerName}
 
                         {user.role === "admin" && (
                           <span className="ml-2 rounded-full bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-400">
@@ -606,14 +735,24 @@ export default function AdminPanel() {
                       </h4>
 
                       <p className="text-sm text-neutral-400">
+                        Usuario app:{" "}
+                        <span className="text-neutral-200">{user.username || "N/A"}</span>
+                      </p>
+
+                      <p className="text-sm text-neutral-400">
+                        Contraseña app:{" "}
+                        <span className="text-neutral-200">{user.password || "N/A"}</span>
+                      </p>
+
+                      <p className="text-sm text-neutral-400">
                         Estado:{" "}
                         <span
                           className={
                             blocked
                               ? "text-red-400"
                               : expired
-                              ? "text-orange-400"
-                              : "text-green-400"
+                                ? "text-orange-400"
+                                : "text-green-400"
                           }
                         >
                           {blocked ? "blocked" : expired ? "expired" : "active"}
@@ -628,10 +767,7 @@ export default function AdminPanel() {
                       </p>
 
                       <p className="text-sm text-neutral-400">
-                        Plan:{" "}
-                        <span className="text-neutral-200">
-                          {user.plan || "N/A"}
-                        </span>
+                        Plan: <span className="text-neutral-200">{user.plan || "N/A"}</span>
                       </p>
 
                       <p className="text-sm text-neutral-400">
@@ -652,6 +788,39 @@ export default function AdminPanel() {
                         WhatsApp:{" "}
                         <span className="text-neutral-200">
                           {user.phone || "Sin teléfono"}
+                        </span>
+                      </p>
+
+                      <p className="text-sm text-neutral-400">
+                        Dispositivo:{" "}
+                        <span className="text-neutral-200">
+                          {user.device_type || "Sin dispositivo"}
+                        </span>
+                      </p>
+
+                      <p className="text-sm text-neutral-400">
+                        PIN portal:{" "}
+                        <span className="text-neutral-200">
+                          {user.portal_pin || "0000"}
+                        </span>{" "}
+                        {user.must_change_pin ? (
+                          <span className="text-yellow-400">(debe cambiarlo)</span>
+                        ) : (
+                          <span className="text-green-400">(personalizado)</span>
+                        )}
+                      </p>
+
+                      <p className="text-sm text-neutral-400">
+                        Código referido:{" "}
+                        <span className="text-yellow-400">
+                          {user.referral_code || "Pendiente"}
+                        </span>
+                      </p>
+
+                      <p className="text-sm text-neutral-400">
+                        Boletos:{" "}
+                        <span className="text-neutral-200">
+                          {user.total_tickets || 0}
                         </span>
                       </p>
 
@@ -677,90 +846,107 @@ export default function AdminPanel() {
                     </div>
 
                     <div className="flex flex-col gap-3 xl:items-end">
-  {accountType === "customer" && (
-    <div className="flex flex-wrap gap-2">
-      {quickMonths.map((month) => (
-        <button
-          key={month}
-          onClick={() => addTimeToUser(user, month)}
-          className="rounded-xl bg-yellow-500 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-400"
-        >
-          +{month} mes{month > 1 ? "es" : ""}
-        </button>
-      ))}
-    </div>
-  )}
+                      {accountType === "customer" && (
+                        <div className="flex flex-wrap gap-2">
+                          {quickMonths.map((month) => (
+                            <button
+                              key={month}
+                              onClick={() => addTimeToUser(user, month)}
+                              className="rounded-xl bg-yellow-500 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-400"
+                            >
+                              +{month} mes{month > 1 ? "es" : ""}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
-  <div className="flex flex-wrap gap-2">
-    <select
-      value={selectedMonths}
-      onChange={(e) =>
-        updateSelectedMonths(user.id, Number(e.target.value))
-      }
-      className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-yellow-500"
-    >
-      {monthOptions.map((month) => (
-        <option key={month} value={month}>
-          {month} mes{month > 1 ? "es" : ""}
-        </option>
-      ))}
-    </select>
+                      <div className="flex flex-wrap gap-2">
+                        <select
+                          value={selectedMonths}
+                          onChange={(e) =>
+                            updateSelectedMonths(user.id, Number(e.target.value))
+                          }
+                          className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-yellow-500"
+                        >
+                          {monthOptions.map((month) => (
+                            <option key={month} value={month}>
+                              {month} mes{month > 1 ? "es" : ""}
+                            </option>
+                          ))}
+                        </select>
 
-    {accountType === "demo" ? (
-      <button
-        onClick={() => convertDemoToCustomer(user, selectedMonths)}
-        className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500"
-      >
-        Convertir a cliente
-      </button>
-    ) : (
-      <button
-        onClick={() => addTimeToUser(user, selectedMonths)}
-        className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500"
-      >
-        Agregar tiempo
-      </button>
-    )}
+                        {accountType === "demo" ? (
+                          <button
+                            onClick={() => convertDemoToCustomer(user, selectedMonths)}
+                            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500"
+                          >
+                            Convertir a cliente
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => addTimeToUser(user, selectedMonths)}
+                            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500"
+                          >
+                            Agregar tiempo
+                          </button>
+                        )}
 
-    <button
-      onClick={() => startEdit(user)}
-      className="rounded-xl bg-neutral-800 px-4 py-2 text-sm font-bold text-white hover:bg-neutral-700"
-    >
-      Editar
-    </button>
+                        <button
+                          onClick={() => startEdit(user)}
+                          className="rounded-xl bg-neutral-800 px-4 py-2 text-sm font-bold text-white hover:bg-neutral-700"
+                        >
+                          Editar
+                        </button>
 
-    {user.phone && (
-      <a
-        href={getWhatsAppCustomerLink(user)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white hover:bg-green-600"
-      >
-        WhatsApp
-      </a>
-    )}
+                        <button
+                          onClick={() => resetPortalPin(user)}
+                          className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600"
+                        >
+                          Reset PIN
+                        </button>
 
-    <button
-      onClick={() => toggleBlockUser(user)}
-      className={`rounded-xl px-4 py-2 text-sm font-bold ${
-        blocked
-          ? "bg-green-600 text-white hover:bg-green-500"
-          : "bg-red-600 text-white hover:bg-red-500"
-      }`}
-    >
-      {blocked ? "Desbloquear" : "Bloquear"}
-    </button>
-  </div>
-</div>
+                        {user.phone && (
+                          <a
+                            href={getWhatsAppCustomerLink(user)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white hover:bg-green-600"
+                          >
+                            WhatsApp
+                          </a>
+                        )}
+
+                        <button
+                          onClick={() => toggleBlockUser(user)}
+                          className={`rounded-xl px-4 py-2 text-sm font-bold ${
+                            blocked
+                              ? "bg-green-600 text-white hover:bg-green-500"
+                              : "bg-red-600 text-white hover:bg-red-500"
+                          }`}
+                        >
+                          {blocked ? "Desbloquear" : "Bloquear"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="grid gap-3 md:grid-cols-3">
                       <input
+                        value={editForm.customer_name}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, customer_name: e.target.value })
+                        }
+                        placeholder="Nombre del cliente"
+                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
+                      />
+
+                      <input
                         value={editForm.username}
                         onChange={(e) =>
                           setEditForm({ ...editForm, username: e.target.value })
                         }
+                        placeholder="Usuario app"
                         className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
                       />
 
@@ -769,6 +955,7 @@ export default function AdminPanel() {
                         onChange={(e) =>
                           setEditForm({ ...editForm, password: e.target.value })
                         }
+                        placeholder="Contraseña app"
                         className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
                       />
 
@@ -844,6 +1031,20 @@ export default function AdminPanel() {
                       />
 
                       <select
+                        value={editForm.device_type}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, device_type: e.target.value })
+                        }
+                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
+                      >
+                        {deviceOptions.map((device) => (
+                          <option key={device} value={device}>
+                            {device}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
                         value={editForm.role}
                         onChange={(e) =>
                           setEditForm({ ...editForm, role: e.target.value })
@@ -862,7 +1063,7 @@ export default function AdminPanel() {
                             device_mac: e.target.value,
                           })
                         }
-                        placeholder="MAC"
+                        placeholder="MAC opcional"
                         className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
                       />
 
@@ -874,7 +1075,7 @@ export default function AdminPanel() {
                             device_key: e.target.value,
                           })
                         }
-                        placeholder="Device Key"
+                        placeholder="Device Key opcional"
                         className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
                       />
 
@@ -888,6 +1089,29 @@ export default function AdminPanel() {
                         <option value="active">active</option>
                         <option value="blocked">blocked</option>
                       </select>
+
+                      <input
+                        value={editForm.portal_pin}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, portal_pin: e.target.value })
+                        }
+                        placeholder="PIN portal"
+                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
+                      />
+
+                      <label className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm text-neutral-200">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(editForm.must_change_pin)}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              must_change_pin: e.target.checked,
+                            })
+                          }
+                        />
+                        Debe cambiar PIN
+                      </label>
                     </div>
 
                     <textarea
