@@ -106,17 +106,17 @@ export default function PlansSection({ t, lang, currency }: Props) {
                 )
               )}
 
-              <div className="pt-4 mt-4 border-t border-yellow-500/20 space-y-3">
-                <li className="flex items-center gap-3 text-yellow-400 font-medium">
-                  <Zap className="w-5 h-5 shrink-0 fill-yellow-400/20" />
-                  <span>{t.planes.ahorro}</span>
-                </li>
+              <li className="pt-4 mt-4 border-t border-yellow-500/20 space-y-3 list-none">
+  <div className="flex items-center gap-3 text-yellow-400 font-medium">
+    <Zap className="w-5 h-5 shrink-0 fill-yellow-400/20" />
+    <span>{lang === "es" ? "1 mes de regalo incluido" : "1 free month included"}</span>
+  </div>
 
-                <li className="flex items-center gap-3 text-yellow-400 font-medium">
-                  <ShieldCheck className="w-5 h-5 shrink-0 fill-yellow-400/20" />
-                  <span>{t.planes.recomendado}</span>
-                </li>
-              </div>
+  <div className="flex items-center gap-3 text-yellow-400 font-medium">
+    <ShieldCheck className="w-5 h-5 shrink-0 fill-yellow-400/20" />
+    <span>{t.planes.recomendado}</span>
+  </div>
+</li>
             </ul>
 
             <a
