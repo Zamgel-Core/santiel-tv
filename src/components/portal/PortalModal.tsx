@@ -30,30 +30,40 @@ type PortalModalProps = {
 export default function PortalModal({
   showLoginModal,
   setShowLoginModal,
-
   portalUser,
-
   portalUsername,
   setPortalUsername,
-
   portalPassword,
   setPortalPassword,
-
   portalError,
   isPortalLoading,
-
   handlePortalLogin,
   handlePortalLogout,
 }: PortalModalProps) {
   const isAdmin = portalUser?.role === "admin";
 
-  const [portalMode, setPortalMode] = useState<
-    "selector" | "legacy" | "phone"
-  >("selector");
+  const [portalMode, setPortalMode] = useState<"selector" | "legacy" | "phone">(
+    "selector"
+  );
+
+  const closePortal = () => {
+    setShowLoginModal(false);
+  };
+
+  const logoutAdmin = () => {
+    handlePortalLogout();
+    localStorage.removeItem("portalUser");
+    setPortalMode("selector");
+  };
 
   useEffect(() => {
     if (showLoginModal) {
       document.body.style.overflow = "hidden";
+
+      const savedPortalUser = localStorage.getItem("portalUser");
+      if (savedPortalUser && !portalUser) {
+        setPortalMode("phone");
+      }
     } else {
       document.body.style.overflow = "";
     }
@@ -61,11 +71,12 @@ export default function PortalModal({
     return () => {
       document.body.style.overflow = "";
     };
-  }, [showLoginModal]);
+  }, [showLoginModal, portalUser]);
 
   useEffect(() => {
     if (!showLoginModal) {
-      setPortalMode("selector");
+      const savedPortalUser = localStorage.getItem("portalUser");
+      setPortalMode(savedPortalUser ? "phone" : "selector");
     }
   }, [showLoginModal]);
 
@@ -77,7 +88,7 @@ export default function PortalModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setShowLoginModal(false)}
+            onClick={closePortal}
             className="absolute inset-0 bg-neutral-950/80 backdrop-blur-sm"
           />
 
@@ -86,25 +97,23 @@ export default function PortalModal({
               initial={{ opacity: 0, scale: 0.92, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 20 }}
-              className="relative w-full max-w-2xl rounded-[2rem] border border-neutral-800 bg-neutral-900 p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
+              className="relative w-full max-w-2xl rounded-[2rem] border border-neutral-800 bg-neutral-900 p-6 md:p-8 shadow-2xl max-h-[88vh] overflow-y-auto"
             >
               <button
-                onClick={() => setShowLoginModal(false)}
+                onClick={closePortal}
                 className="absolute top-4 right-4 rounded-full bg-white/5 p-2 text-neutral-500 transition hover:text-white"
               >
                 <X className="h-6 w-6" />
               </button>
 
-              <div className="mb-8 text-center">
-                <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-yellow-500/10">
-                  <ShieldCheck className="h-10 w-10 text-yellow-500" />
+              <div className="mb-6 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-500/10">
+                  <ShieldCheck className="h-8 w-8 text-yellow-500" />
                 </div>
 
-                <h2 className="text-3xl font-black text-white">
-                  Portal Santiel TV
-                </h2>
+                <h2 className="text-3xl font-black text-white">Portal Santiel TV</h2>
 
-                <p className="mt-3 text-neutral-400">
+                <p className="mt-2 text-neutral-400">
                   Accede a tu cuenta, boletos y beneficios premium.
                 </p>
               </div>
@@ -119,9 +128,7 @@ export default function PortalModal({
                       <Smartphone className="h-7 w-7" />
                     </div>
 
-                    <h3 className="text-xl font-black text-white">
-                      Teléfono + PIN
-                    </h3>
+                    <h3 className="text-xl font-black text-white">Teléfono + PIN</h3>
 
                     <p className="mt-2 text-sm leading-relaxed text-neutral-400">
                       Acceso rápido para clientes Santiel TV.
@@ -136,9 +143,7 @@ export default function PortalModal({
                       <UserCog className="h-7 w-7 text-white" />
                     </div>
 
-                    <h3 className="text-xl font-black text-white">
-                      Acceso clásico
-                    </h3>
+                    <h3 className="text-xl font-black text-white">Acceso clásico</h3>
 
                     <p className="mt-2 text-sm leading-relaxed text-neutral-400">
                       Recomendado para administradores.
@@ -148,7 +153,7 @@ export default function PortalModal({
               )}
 
               {portalMode === "phone" && (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   <button
                     onClick={() => setPortalMode("selector")}
                     className="text-sm font-bold text-yellow-400"
@@ -161,7 +166,7 @@ export default function PortalModal({
               )}
 
               {portalMode === "legacy" && (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   <button
                     onClick={() => setPortalMode("selector")}
                     className="text-sm font-bold text-yellow-400"
@@ -181,15 +186,14 @@ export default function PortalModal({
                       <input
                         value={portalPassword}
                         onChange={(e) => setPortalPassword(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handlePortalLogin()}
                         type="password"
                         placeholder="Contraseña"
                         className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white"
                       />
 
                       {portalError && (
-                        <p className="text-center text-sm text-red-500">
-                          {portalError}
-                        </p>
+                        <p className="text-center text-sm text-red-500">{portalError}</p>
                       )}
 
                       <button
@@ -211,11 +215,9 @@ export default function PortalModal({
               exit={{ opacity: 0, scale: 0.95 }}
               className="relative h-[95vh] w-[98vw] overflow-hidden rounded-[2rem] border border-neutral-800 bg-neutral-950 shadow-2xl"
             >
-              <div className="flex items-center justify-between border-b border-neutral-800 px-8 py-5">
+              <div className="flex items-center justify-between border-b border-neutral-800 px-6 md:px-8 py-4">
                 <div>
-                  <h2 className="text-2xl font-black text-white">
-                    Panel Super Admin
-                  </h2>
+                  <h2 className="text-2xl font-black text-white">Panel Super Admin</h2>
 
                   <p className="text-sm text-neutral-400">
                     Gestión avanzada de usuarios y sorteos.
@@ -224,14 +226,14 @@ export default function PortalModal({
 
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={handlePortalLogout}
+                    onClick={logoutAdmin}
                     className="rounded-xl bg-neutral-800 px-5 py-3 font-bold text-white transition hover:bg-neutral-700"
                   >
                     Cerrar sesión
                   </button>
 
                   <button
-                    onClick={() => setShowLoginModal(false)}
+                    onClick={closePortal}
                     className="rounded-full bg-white/5 p-2 text-neutral-400 transition hover:text-white"
                   >
                     <X className="h-6 w-6" />
@@ -239,7 +241,7 @@ export default function PortalModal({
                 </div>
               </div>
 
-              <div className="h-[calc(95vh-88px)] overflow-y-auto p-6">
+              <div className="h-[calc(95vh-76px)] overflow-y-auto p-5 md:p-6">
                 <AdminPanel />
               </div>
             </motion.div>
@@ -251,7 +253,7 @@ export default function PortalModal({
               className="relative w-full max-w-2xl rounded-[2rem] border border-neutral-800 bg-neutral-900 p-8 shadow-2xl"
             >
               <button
-                onClick={() => setShowLoginModal(false)}
+                onClick={closePortal}
                 className="absolute top-4 right-4 rounded-full bg-white/5 p-2 text-neutral-500 transition hover:text-white"
               >
                 <X className="h-6 w-6" />
@@ -260,7 +262,7 @@ export default function PortalModal({
               <CustomerPanel user={portalUser} />
 
               <button
-                onClick={handlePortalLogout}
+                onClick={logoutAdmin}
                 className="mt-5 w-full rounded-xl bg-neutral-800 py-3 font-bold text-white transition hover:bg-neutral-700"
               >
                 Cerrar sesión

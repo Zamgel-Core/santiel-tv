@@ -1,7 +1,7 @@
 //📍 Ruta: src/components/portal/PortalAccessCard.tsx
 
-import { useState } from "react";
-import { Lock, Phone, ShieldCheck, KeyRound, Crown, Ticket } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Lock, Phone, ShieldCheck, KeyRound, Crown, Ticket, LogOut } from "lucide-react";
 
 import {
   changePortalPin,
@@ -9,16 +9,50 @@ import {
   type PortalUser,
 } from "../../services/portal/portalAuth";
 
+const PORTAL_SESSION_KEY = "portalUser";
+
 export default function PortalAccessCard() {
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+
   const [user, setUser] = useState<PortalUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem(PORTAL_SESSION_KEY);
+
+    if (!savedUser) return;
+
+    try {
+      const parsedUser = JSON.parse(savedUser) as PortalUser;
+      setUser(parsedUser);
+      setPhone(parsedUser.phone || "");
+      setMessage("Bienvenido de nuevo a tu portal Santiel.");
+    } catch {
+      localStorage.removeItem(PORTAL_SESSION_KEY);
+    }
+  }, []);
+
+  const savePortalSession = (loggedUser: PortalUser) => {
+    setUser(loggedUser);
+    setPhone(loggedUser.phone || phone);
+    localStorage.setItem(PORTAL_SESSION_KEY, JSON.stringify(loggedUser));
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(PORTAL_SESSION_KEY);
+    setUser(null);
+    setPin("");
+    setNewPin("");
+    setConfirmPin("");
+    setMessage("Sesión cerrada correctamente.");
+    setError("");
+  };
 
   const handleLogin = async () => {
     try {
@@ -27,7 +61,7 @@ export default function PortalAccessCard() {
       setMessage("");
 
       const loggedUser = await loginPortalWithPin(phone, pin);
-      setUser(loggedUser);
+      savePortalSession(loggedUser);
 
       if (loggedUser.must_change_pin) {
         setMessage("Por seguridad, crea tu PIN personal para continuar.");
@@ -48,9 +82,10 @@ export default function PortalAccessCard() {
       setMessage("");
 
       await changePortalPin(phone, pin, newPin, confirmPin);
-      const loggedUser = await loginPortalWithPin(phone, newPin);
 
-      setUser(loggedUser);
+      const loggedUser = await loginPortalWithPin(phone, newPin);
+      savePortalSession(loggedUser);
+
       setPin(newPin);
       setNewPin("");
       setConfirmPin("");
@@ -71,29 +106,26 @@ export default function PortalAccessCard() {
     : "Sin fecha registrada";
 
   return (
-    <div className="rounded-[2rem] border border-yellow-500/20 bg-neutral-950 p-6 md:p-8">
-      <div className="mb-6">
+    <div className="rounded-[2rem] border border-yellow-500/20 bg-neutral-950 p-5 md:p-7">
+      <div className="mb-5">
         <div className="inline-flex items-center gap-2 rounded-full border border-yellow-500/20 bg-yellow-500/10 px-4 py-2 text-sm font-bold text-yellow-400">
           <Lock className="h-4 w-4" />
           Portal Santiel
         </div>
 
-        <h3 className="mt-4 text-3xl font-black text-white">
+        <h3 className="mt-4 text-2xl md:text-3xl font-black text-white">
           Entra con tu teléfono y PIN
         </h3>
 
-        <p className="mt-2 text-neutral-400">
-          La primera vez usa el PIN 0000. Después te pediremos crear tu PIN
-          personal.
+        <p className="mt-2 text-sm md:text-base text-neutral-400">
+          La primera vez usa el PIN 0000. Después te pediremos crear tu PIN personal.
         </p>
       </div>
 
       {!user ? (
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-neutral-300">
-              Teléfono
-            </label>
+            <label className="text-sm font-medium text-neutral-300">Teléfono</label>
             <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <Phone className="h-5 w-5 text-yellow-400" />
               <input
@@ -140,9 +172,7 @@ export default function PortalAccessCard() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-neutral-300">
-              Nuevo PIN
-            </label>
+            <label className="text-sm font-medium text-neutral-300">Nuevo PIN</label>
             <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <KeyRound className="h-5 w-5 text-yellow-400" />
               <input
@@ -157,9 +187,7 @@ export default function PortalAccessCard() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-neutral-300">
-              Confirmar PIN
-            </label>
+            <label className="text-sm font-medium text-neutral-300">Confirmar PIN</label>
             <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <ShieldCheck className="h-5 w-5 text-yellow-400" />
               <input
@@ -183,7 +211,7 @@ export default function PortalAccessCard() {
           </button>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
             <p className="text-sm text-neutral-400">Usuario</p>
             <p className="text-2xl font-black text-white">
@@ -199,9 +227,7 @@ export default function PortalAccessCard() {
                   {user.is_premium ? "Premium activo" : "Cuenta gratis/vencida"}
                 </p>
               </div>
-              <p className="mt-2 text-sm text-yellow-100/80">
-                Vence: {expirationLabel}
-              </p>
+              <p className="mt-2 text-sm text-yellow-100/80">Vence: {expirationLabel}</p>
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -221,10 +247,18 @@ export default function PortalAccessCard() {
               {user.referral_code || "Pendiente"}
             </p>
             <p className="mt-2 text-sm text-neutral-400">
-              Comparte este código para ganar boletos extra cuando alguien
-              participe por primera vez.
+              Comparte este código para ganar boletos extra cuando alguien participe por primera vez.
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/5 px-6 py-3 font-bold text-white transition hover:bg-white/10"
+          >
+            <LogOut className="h-4 w-4" />
+            Cerrar sesión del portal
+          </button>
         </div>
       )}
 
