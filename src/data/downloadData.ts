@@ -5,16 +5,16 @@ export const downloadData: Record<
   android: {
     title: "Android APK",
     link: "https://www.mediafire.com/file/4yss9xnkucl4zbr/SantielTV_V1.apk/file",
-    pass: "Santielandroid2026",
+    pass: "SantielAndroid2026",
   },
   apple: {
     title: "Apple iOS",
     link: "https://apps.apple.com/us/app/aztk-play/id1662070685",
-    pass: "Santielapple2026",
+    pass: "SantielApple2026",
   },
   roku: {
     title: "Roku TV",
-    images: ["DigitalPro", "MundoSoporte"],
+    images: ["kratostv", "DigitalPro"],
     pass: "SantielRokutv2026",
   },
   pc: {
