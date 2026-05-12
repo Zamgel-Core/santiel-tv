@@ -5,6 +5,8 @@ import { supabase } from "../../lib/supabaseClient";
 export type PortalUser = {
   id: string;
   username: string | null;
+  display_name?: string | null;
+  customer_name?: string | null;
   phone: string | null;
   status: string | null;
   account_type: string | null;
@@ -20,26 +22,16 @@ export async function loginPortalWithPin(phone: string, pin: string) {
   const cleanPhone = phone.trim();
   const cleanPin = pin.trim();
 
-  if (!cleanPhone) {
-    throw new Error("Ingresa tu teléfono.");
-  }
-
-  if (!cleanPin) {
-    throw new Error("Ingresa tu PIN.");
-  }
+  if (!cleanPhone) throw new Error("Ingresa tu teléfono.");
+  if (!cleanPin) throw new Error("Ingresa tu PIN.");
 
   const { data, error } = await supabase.rpc("portal_login_by_phone_pin", {
     p_phone: cleanPhone,
     p_pin: cleanPin,
   });
 
-  if (error) {
-    throw new Error(error.message || "No se pudo iniciar sesión.");
-  }
-
-  if (!data) {
-    throw new Error("Teléfono o PIN incorrecto.");
-  }
+  if (error) throw new Error(error.message || "No se pudo iniciar sesión.");
+  if (!data) throw new Error("Teléfono o PIN incorrecto.");
 
   return data as PortalUser;
 }
@@ -55,13 +47,8 @@ export async function changePortalPin(
   const cleanNewPin = newPin.trim();
   const cleanConfirmPin = confirmPin.trim();
 
-  if (!cleanPhone) {
-    throw new Error("Ingresa tu teléfono.");
-  }
-
-  if (!cleanOldPin) {
-    throw new Error("Ingresa tu PIN actual.");
-  }
+  if (!cleanPhone) throw new Error("Ingresa tu teléfono.");
+  if (!cleanOldPin) throw new Error("Ingresa tu PIN actual.");
 
   if (!/^[0-9]{4,6}$/.test(cleanNewPin)) {
     throw new Error("Tu nuevo PIN debe tener de 4 a 6 números.");
@@ -81,9 +68,34 @@ export async function changePortalPin(
     p_new_pin: cleanNewPin,
   });
 
-  if (error) {
-    throw new Error(error.message || "No se pudo cambiar el PIN.");
-  }
+  if (error) throw new Error(error.message || "No se pudo cambiar el PIN.");
 
   return data as { success: boolean; message: string };
+}
+
+export async function updatePortalDisplayName(
+  phone: string,
+  displayName: string
+) {
+  const cleanPhone = phone.trim();
+  const cleanName = displayName.trim();
+
+  if (!cleanPhone) throw new Error("Teléfono inválido.");
+  if (cleanName.length < 2) throw new Error("Ingresa un nombre válido.");
+  if (cleanName.length > 40) {
+    throw new Error("El nombre no puede pasar de 40 caracteres.");
+  }
+
+  const { data, error } = await supabase.rpc("update_portal_display_name", {
+    p_phone: cleanPhone,
+    p_display_name: cleanName,
+  });
+
+  if (error) throw new Error(error.message || "No se pudo actualizar el nombre.");
+
+  return data as {
+    success: boolean;
+    message: string;
+    user: PortalUser;
+  };
 }

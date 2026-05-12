@@ -1,11 +1,22 @@
 //📍 Ruta: src/components/portal/PortalAccessCard.tsx
 
-import { useEffect, useState } from "react";
-import { Lock, Phone, ShieldCheck, KeyRound, Crown, Ticket, LogOut } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Lock,
+  Phone,
+  ShieldCheck,
+  KeyRound,
+  Crown,
+  Ticket,
+  LogOut,
+  Pencil,
+  Save,
+} from "lucide-react";
 
 import {
   changePortalPin,
   loginPortalWithPin,
+  updatePortalDisplayName,
   type PortalUser,
 } from "../../services/portal/portalAuth";
 
@@ -18,8 +29,13 @@ export default function PortalAccessCard() {
   const [confirmPin, setConfirmPin] = useState("");
 
   const [user, setUser] = useState<PortalUser | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [editingName, setEditingName] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
+  const [nameLoading, setNameLoading] = useState(false);
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -32,15 +48,40 @@ export default function PortalAccessCard() {
       const parsedUser = JSON.parse(savedUser) as PortalUser;
       setUser(parsedUser);
       setPhone(parsedUser.phone || "");
+      setDisplayName(
+        parsedUser.display_name ||
+          parsedUser.customer_name ||
+          parsedUser.username ||
+          ""
+      );
       setMessage("Bienvenido de nuevo a tu portal Santiel.");
     } catch {
       localStorage.removeItem(PORTAL_SESSION_KEY);
     }
   }, []);
 
+  const visibleName = useMemo(() => {
+    return (
+      user?.display_name ||
+      user?.customer_name ||
+      user?.username ||
+      "Cliente Santiel"
+    );
+  }, [user]);
+
+  const accountBadge = user?.is_premium
+    ? { label: "👑 Premium activo", color: "text-yellow-300", bg: "bg-yellow-500/10 border-yellow-500/20" }
+    : { label: "🎟 Free / participante", color: "text-sky-300", bg: "bg-sky-500/10 border-sky-500/20" };
+
   const savePortalSession = (loggedUser: PortalUser) => {
     setUser(loggedUser);
     setPhone(loggedUser.phone || phone);
+    setDisplayName(
+      loggedUser.display_name ||
+        loggedUser.customer_name ||
+        loggedUser.username ||
+        ""
+    );
     localStorage.setItem(PORTAL_SESSION_KEY, JSON.stringify(loggedUser));
   };
 
@@ -50,6 +91,8 @@ export default function PortalAccessCard() {
     setPin("");
     setNewPin("");
     setConfirmPin("");
+    setDisplayName("");
+    setEditingName(false);
     setMessage("Sesión cerrada correctamente.");
     setError("");
   };
@@ -97,6 +140,27 @@ export default function PortalAccessCard() {
     }
   };
 
+  const handleSaveName = async () => {
+    try {
+      setNameLoading(true);
+      setError("");
+      setMessage("");
+
+      if (!user?.phone) {
+        throw new Error("No encontramos tu teléfono.");
+      }
+
+      const result = await updatePortalDisplayName(user.phone, displayName);
+      savePortalSession(result.user);
+      setEditingName(false);
+      setMessage(result.message || "Nombre actualizado correctamente.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar.");
+    } finally {
+      setNameLoading(false);
+    }
+  };
+
   const expirationLabel = user?.expiration_date
     ? new Date(user.expiration_date).toLocaleDateString("es-US", {
         month: "long",
@@ -118,14 +182,17 @@ export default function PortalAccessCard() {
         </h3>
 
         <p className="mt-2 text-sm md:text-base text-neutral-400">
-          La primera vez usa el PIN 0000. Después te pediremos crear tu PIN personal.
+          La primera vez usa el PIN 0000. Después te pediremos crear tu PIN
+          personal.
         </p>
       </div>
 
       {!user ? (
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-neutral-300">Teléfono</label>
+            <label className="text-sm font-medium text-neutral-300">
+              Teléfono
+            </label>
             <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <Phone className="h-5 w-5 text-yellow-400" />
               <input
@@ -172,7 +239,9 @@ export default function PortalAccessCard() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-neutral-300">Nuevo PIN</label>
+            <label className="text-sm font-medium text-neutral-300">
+              Nuevo PIN
+            </label>
             <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <KeyRound className="h-5 w-5 text-yellow-400" />
               <input
@@ -187,7 +256,9 @@ export default function PortalAccessCard() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-neutral-300">Confirmar PIN</label>
+            <label className="text-sm font-medium text-neutral-300">
+              Confirmar PIN
+            </label>
             <div className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <ShieldCheck className="h-5 w-5 text-yellow-400" />
               <input
@@ -212,10 +283,52 @@ export default function PortalAccessCard() {
         </div>
       ) : (
         <div className="space-y-4">
+          <div className={`rounded-3xl border p-4 ${accountBadge.bg}`}>
+            <p className={`text-sm font-black ${accountBadge.color}`}>
+              {accountBadge.label}
+            </p>
+          </div>
+
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <p className="text-sm text-neutral-400">Usuario</p>
-            <p className="text-2xl font-black text-white">
-              {user.username || "Cliente Santiel"}
+            <p className="text-sm text-neutral-400">Nombre visible</p>
+
+            {!editingName ? (
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="text-2xl font-black text-white">{visibleName}</p>
+
+                <button
+                  type="button"
+                  onClick={() => setEditingName(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white hover:bg-white/15"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Editar
+                </button>
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                <input
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  placeholder="Tu nombre visible"
+                  className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-yellow-500"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleSaveName}
+                  disabled={nameLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-yellow-500 px-4 py-3 font-black text-black hover:bg-yellow-400 disabled:opacity-60"
+                >
+                  <Save className="h-4 w-4" />
+                  {nameLoading ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            )}
+
+            <p className="mt-3 text-xs text-neutral-500">
+              Solo puedes cambiar tu nombre visible. Usuario app, contraseña,
+              teléfono y vigencia solo los modifica el admin.
             </p>
           </div>
 
@@ -224,10 +337,12 @@ export default function PortalAccessCard() {
               <div className="flex items-center gap-2 text-yellow-300">
                 <Crown className="h-5 w-5" />
                 <p className="font-bold">
-                  {user.is_premium ? "Premium activo" : "Cuenta gratis/vencida"}
+                  {user.is_premium ? "Premium activo" : "Free / sin servicio"}
                 </p>
               </div>
-              <p className="mt-2 text-sm text-yellow-100/80">Vence: {expirationLabel}</p>
+              <p className="mt-2 text-sm text-yellow-100/80">
+                Vence: {expirationLabel}
+              </p>
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -247,7 +362,8 @@ export default function PortalAccessCard() {
               {user.referral_code || "Pendiente"}
             </p>
             <p className="mt-2 text-sm text-neutral-400">
-              Comparte este código para ganar boletos extra cuando alguien participe por primera vez.
+              Comparte este código para ganar boletos extra cuando alguien
+              participe por primera vez.
             </p>
           </div>
 
