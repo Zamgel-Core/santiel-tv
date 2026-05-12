@@ -14,7 +14,7 @@ export const downloadData: Record<
   },
   roku: {
     title: "Roku TV",
-    images: ["DigitalPro", "MundoSoporte"],
+    images: ["Kratostv", "DigitalPro"],
     pass: "SantielRokutv2026",
   },
   pc: {
