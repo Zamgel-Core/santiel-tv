@@ -5,7 +5,7 @@ import { requestEmailCode, verifyEmailCode, signOutEmailSession } from "../../se
 
 type Profile = { username?: string; customer_name?: string; display_name?: string; is_admin?: boolean; is_premium?: boolean };
 
-export default function EmailOtpAccess() {
+export default function EmailOtpAccess({ onVerified }: { onVerified: (profile: Record<string, unknown>) => void }) {
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
   const [stage, setStage] = useState<"email" | "code" | "verified">("email");
@@ -34,6 +34,7 @@ export default function EmailOtpAccess() {
         throw new Error("Tu correo aún no está vinculado a una cuenta del portal. Contacta a Santiel TV.");
       }
       setProfile(data as Profile);
+      onVerified(data as Record<string, unknown>);
       setStage("verified");
       setMessage("Correo verificado y cuenta vinculada correctamente.");
     } catch (e) { setError(e instanceof Error ? e.message : "No se pudo validar el código."); }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, X, ShieldCheck, Lock } from "lucide-react";
 
@@ -310,6 +310,13 @@ const translations = {
   }
 };
 
+function normalizePortalProfile(value: Record<string, unknown>) {
+  return {
+    ...value,
+    role: value.is_admin === true ? "admin" : "customer",
+  };
+}
+
 export default function App() {
   const [showDemoModal, setShowDemoModal] = useState(false);
   const [lang, setLang] = useState<"es" | "en">("es");
@@ -337,78 +344,38 @@ export default function App() {
 
   const t = translations[lang];
 
-  const handlePortalLogin = async () => {
-  setPortalError("");
-  setIsPortalLoading(true);
+  // El perfil y el rol se obtienen del servidor con una sesión Supabase válida.
+  useEffect(() => {
+    let active = true;
+    const restoreProfile = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!active) return;
+      if (!sessionData.session) {
+        setPortalUser(null);
+        return;
+      }
+      const { data, error } = await supabase.rpc("portal_profile");
+      if (active) setPortalUser(!error && data ? normalizePortalProfile(data) : null);
+    };
+    void restoreProfile();
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session && active) setPortalUser(null);
+      // No invocar RPC directamente dentro del callback de auth.
+    });
+    return () => { active = false; subscription.subscription.unsubscribe(); };
+  }, []);
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("username", portalUsername.trim())
-    .eq("password", portalPassword.trim())
-    .maybeSingle();
+  const handleEmailVerified = (profile: Record<string, unknown>) => {
+    setPortalUser(normalizePortalProfile(profile));
+    setPortalError("");
+  };
 
-  setIsPortalLoading(false);
+  const handlePortalLogin = () => {
+    setPortalError("El acceso clásico fue retirado. Utiliza Correo + código.");
+  };
 
-  if (error) {
-    console.error("Portal login error:", error);
-    setPortalError("Error de conexión. Intenta nuevamente.");
-    return;
-  }
-
-  if (!data) {
-    setPortalError("Usuario o contraseña incorrectos.");
-    return;
-  }
-
-  const isBlocked =
-    data.is_active === false ||
-    data.status === "blocked" ||
-    data.status === "bloqueada";
-
-  if (isBlocked) {
-    setPortalError("Esta cuenta no está activa. Contacta a soporte.");
-    return;
-  }
-
-  const isAdmin = data.role === "admin";
-  const accountType =
-    data.account_type === "demo" || data.is_trial === true
-      ? "demo"
-      : "customer";
-
-  if (!isAdmin && data.expiration_date) {
-  const expirationDate = new Date(data.expiration_date);
-  const now = new Date();
-
-  if (expirationDate < now) {
-    // 🔒 Auto bloquear en DB
-    await supabase
-      .from("users")
-      .update({
-        status: "blocked",
-        is_active: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", data.id);
-
-    // 🧠 Detectar si era demo o cliente REAL
-    const isDemo = data.account_type === "demo" || data.is_trial === true;
-
-    setPortalError(
-      isDemo
-        ? "Tu demo ha expirado. Si deseas continuar, adquiere un plan en Santiel TV."
-        : "Tu cuenta está vencida. Renueva tu membresía."
-    );
-
-    return;
-  }
-}
-
-  setPortalUser(data);
-};
-
-  const handlePortalLogout = () => {
+  const handlePortalLogout = async () => {
+    await supabase.auth.signOut();
     setPortalUser(null);
     setPortalUsername("");
     setPortalPassword("");
@@ -496,6 +463,7 @@ export default function App() {
         isPortalLoading={isPortalLoading}
         handlePortalLogin={handlePortalLogin}
         handlePortalLogout={handlePortalLogout}
+        onEmailVerified={handleEmailVerified}
         getDaysRemaining={getDaysRemaining}
         getWhatsAppLink={getWhatsAppLink}
       />

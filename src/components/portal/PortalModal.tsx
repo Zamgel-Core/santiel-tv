@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, UserCog, Smartphone, ShieldCheck, Mail } from "lucide-react";
+import { X, Smartphone, ShieldCheck, Mail } from "lucide-react";
 
 import AdminPanel from "../admin/AdminPanel";
 import CustomerPanel from "./CustomerPanel";
@@ -25,7 +25,8 @@ type PortalModalProps = {
   isPortalLoading: boolean;
 
   handlePortalLogin: () => void;
-  handlePortalLogout: () => void;
+  handlePortalLogout: () => void | Promise<void>;
+  onEmailVerified: (profile: Record<string, unknown>) => void;
   getDaysRemaining?: (...args: any[]) => any;
   getWhatsAppLink?: (...args: any[]) => any;
 };
@@ -34,27 +35,21 @@ export default function PortalModal({
   showLoginModal,
   setShowLoginModal,
   portalUser,
-  portalUsername,
-  setPortalUsername,
-  portalPassword,
-  setPortalPassword,
-  portalError,
-  isPortalLoading,
-  handlePortalLogin,
   handlePortalLogout,
+  onEmailVerified,
 }: PortalModalProps) {
   const isAdmin = portalUser?.role === "admin";
 
-  const [portalMode, setPortalMode] = useState<"selector" | "legacy" | "phone" | "email">(
-    "selector"
-  );
+  const [portalMode, setPortalMode] = useState<
+    "selector" | "legacy" | "phone" | "email"
+  >("selector");
 
   const closePortal = () => {
     setShowLoginModal(false);
   };
 
   const logoutAdmin = () => {
-    handlePortalLogout();
+    void handlePortalLogout();
     localStorage.removeItem("portalUser");
     setPortalMode("selector");
   };
@@ -78,8 +73,7 @@ export default function PortalModal({
 
   useEffect(() => {
     if (!showLoginModal) {
-      const savedPortalUser = localStorage.getItem("portalUser");
-      setPortalMode(savedPortalUser ? "phone" : "selector");
+      setPortalMode("selector");
     }
   }, [showLoginModal]);
 
@@ -114,7 +108,9 @@ export default function PortalModal({
                   <ShieldCheck className="h-8 w-8 text-yellow-500" />
                 </div>
 
-                <h2 className="text-3xl font-black text-white">Portal Santiel TV</h2>
+                <h2 className="text-3xl font-black text-white">
+                  Portal Santiel TV
+                </h2>
 
                 <p className="mt-2 text-neutral-400">
                   Accede a tu cuenta, boletos y beneficios premium.
@@ -131,7 +127,9 @@ export default function PortalModal({
                       <Smartphone className="h-7 w-7" />
                     </div>
 
-                    <h3 className="text-xl font-black text-white">Teléfono + PIN</h3>
+                    <h3 className="text-xl font-black text-white">
+                      Teléfono + PIN
+                    </h3>
 
                     <p className="mt-2 text-sm leading-relaxed text-neutral-400">
                       Acceso rápido para clientes Santiel TV.
@@ -142,23 +140,14 @@ export default function PortalModal({
                     onClick={() => setPortalMode("email")}
                     className="group rounded-[2rem] border border-yellow-500/20 bg-yellow-500/10 p-6 text-left transition hover:border-yellow-400"
                   >
-                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-500 text-black"><Mail className="h-7 w-7" /></div>
-                    <h3 className="text-xl font-black text-white">Correo + código</h3>
-                    <p className="mt-2 text-sm text-neutral-400">Para cuentas ya vinculadas a tu correo.</p>
-                  </button>
-
-                  <button
-                    onClick={() => setPortalMode("legacy")}
-                    className="group rounded-[2rem] border border-white/10 bg-white/5 p-6 text-left transition hover:border-white/20 hover:bg-white/10"
-                  >
-                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
-                      <UserCog className="h-7 w-7 text-white" />
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-500 text-black">
+                      <Mail className="h-7 w-7" />
                     </div>
-
-                    <h3 className="text-xl font-black text-white">Acceso clásico</h3>
-
-                    <p className="mt-2 text-sm leading-relaxed text-neutral-400">
-                      Recomendado para administradores.
+                    <h3 className="text-xl font-black text-white">
+                      Correo + código
+                    </h3>
+                    <p className="mt-2 text-sm text-neutral-400">
+                      Para cuentas ya vinculadas a tu correo.
                     </p>
                   </button>
                 </div>
@@ -179,51 +168,13 @@ export default function PortalModal({
 
               {portalMode === "email" && (
                 <div className="space-y-4">
-                  <button onClick={() => setPortalMode("selector")} className="text-sm font-bold text-yellow-400">← Volver</button>
-                  <EmailOtpAccess />
-                </div>
-              )}
-
-              {portalMode === "legacy" && (
-                <div className="space-y-4">
                   <button
                     onClick={() => setPortalMode("selector")}
                     className="text-sm font-bold text-yellow-400"
                   >
                     ← Volver
                   </button>
-
-                  <div className="rounded-[2rem] border border-white/10 bg-black/30 p-6">
-                    <div className="space-y-4">
-                      <input
-                        value={portalUsername}
-                        onChange={(e) => setPortalUsername(e.target.value)}
-                        placeholder="Usuario"
-                        className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white"
-                      />
-
-                      <input
-                        value={portalPassword}
-                        onChange={(e) => setPortalPassword(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handlePortalLogin()}
-                        type="password"
-                        placeholder="Contraseña"
-                        className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white"
-                      />
-
-                      {portalError && (
-                        <p className="text-center text-sm text-red-500">{portalError}</p>
-                      )}
-
-                      <button
-                        onClick={handlePortalLogin}
-                        disabled={isPortalLoading}
-                        className="w-full rounded-xl bg-yellow-500 py-3 font-bold text-black"
-                      >
-                        {isPortalLoading ? "Validando..." : "Entrar"}
-                      </button>
-                    </div>
-                  </div>
+                  <EmailOtpAccess onVerified={onEmailVerified} />
                 </div>
               )}
             </motion.div>
@@ -236,7 +187,9 @@ export default function PortalModal({
             >
               <div className="flex items-center justify-between border-b border-neutral-800 px-6 md:px-8 py-4">
                 <div>
-                  <h2 className="text-2xl font-black text-white">Panel Super Admin</h2>
+                  <h2 className="text-2xl font-black text-white">
+                    Panel Super Admin
+                  </h2>
 
                   <p className="text-sm text-neutral-400">
                     Gestión avanzada de usuarios y sorteos.
