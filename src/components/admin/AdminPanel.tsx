@@ -181,7 +181,58 @@ export default function AdminPanel() {
     setMessage("Esta operación estará disponible cuando se habilite su API segura.");
   };
 
-  const createUser = unavailableAction;
+  const [isCreating, setIsCreating] = useState(false);
+
+  const createUser = async () => {
+    if (newUser.account_type !== "customer") {
+      setMessage("La creación de demos todavía no está habilitada.");
+      return;
+    }
+    if (!newUser.customer_name.trim() || !newUser.username.trim() || !newUser.password.trim()) {
+      setMessage("Completa nombre, usuario y contraseña de la app.");
+      return;
+    }
+    setIsCreating(true);
+    setMessage("");
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session?.access_token) {
+        throw new Error("Debes iniciar sesión nuevamente.");
+      }
+      const payload = {
+        ...newUser,
+        expiration_date: newUser.expiration_date
+          ? new Date(newUser.expiration_date).toISOString()
+          : "",
+      };
+      const response = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify(payload),
+      });
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("La API de creación no está disponible. Prueba en Vercel.");
+      }
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo crear el cliente.");
+      setNewUser({
+        customer_name: "", username: "", password: "", account_type: "customer",
+        months: 1, demoHours: 1, phone: "", expiration_date: "",
+        device_type: "Roku TV", device_mac: "", device_key: "", notes: "",
+      });
+      await fetchUsers();
+      setMessage("Cliente creado correctamente. Ya aparece en el listado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo crear el cliente.");
+    } finally {
+      setIsCreating(false);
+    }
+  };
   const addTimeToUser = (_user: any, _months: number) => unavailableAction();
   const convertDemoToCustomer = (_user: any, _months: number) => unavailableAction();
   const toggleBlockUser = (_user: any) => unavailableAction();
@@ -311,7 +362,6 @@ export default function AdminPanel() {
           <input
             value={newUser.password}
             type="password"
-            disabled
             onChange={(e) =>
               setNewUser({ ...newUser, password: e.target.value })
             }
@@ -414,17 +464,17 @@ export default function AdminPanel() {
 
           <button
             onClick={createUser}
-            disabled
+            disabled={isCreating || newUser.account_type !== "customer"}
             className="rounded-xl bg-yellow-500 px-4 py-3 font-bold text-black disabled:opacity-50 disabled:cursor-not-allowed md:col-span-4"
           >
             {newUser.account_type === "demo"
               ? "Crear demo (próximamente)"
-              : "Crear cliente (próximamente)"}
+              : isCreating ? "Creando cliente..." : "Crear cliente"}
           </button>
         </div>
 
         <p className="mt-3 text-xs text-neutral-500">
-          La creación de clientes estará disponible al conectar la API administrativa segura.
+          La creación de clientes utiliza la API administrativa segura. Las demos, renovaciones y ediciones continúan deshabilitadas.
           Las cuentas existentes no se modifican.
         </p>
 
