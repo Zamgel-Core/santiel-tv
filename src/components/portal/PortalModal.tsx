@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, UserCog, Smartphone, ShieldCheck } from "lucide-react";
+import { X, UserCog, Smartphone, ShieldCheck, Mail } from "lucide-react";
 
 import AdminPanel from "../admin/AdminPanel";
 import CustomerPanel from "./CustomerPanel";
 import PortalAccessCard from "./PortalAccessCard";
+import EmailOtpAccess from "./EmailOtpAccess";
 
 type PortalModalProps = {
   showLoginModal: boolean;
@@ -25,6 +26,8 @@ type PortalModalProps = {
 
   handlePortalLogin: () => void;
   handlePortalLogout: () => void;
+  getDaysRemaining?: (...args: any[]) => any;
+  getWhatsAppLink?: (...args: any[]) => any;
 };
 
 export default function PortalModal({
@@ -42,7 +45,7 @@ export default function PortalModal({
 }: PortalModalProps) {
   const isAdmin = portalUser?.role === "admin";
 
-  const [portalMode, setPortalMode] = useState<"selector" | "legacy" | "phone">(
+  const [portalMode, setPortalMode] = useState<"selector" | "legacy" | "phone" | "email">(
     "selector"
   );
 
@@ -136,6 +139,15 @@ export default function PortalModal({
                   </button>
 
                   <button
+                    onClick={() => setPortalMode("email")}
+                    className="group rounded-[2rem] border border-yellow-500/20 bg-yellow-500/10 p-6 text-left transition hover:border-yellow-400"
+                  >
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-500 text-black"><Mail className="h-7 w-7" /></div>
+                    <h3 className="text-xl font-black text-white">Correo + código</h3>
+                    <p className="mt-2 text-sm text-neutral-400">Para cuentas ya vinculadas a tu correo.</p>
+                  </button>
+
+                  <button
                     onClick={() => setPortalMode("legacy")}
                     className="group rounded-[2rem] border border-white/10 bg-white/5 p-6 text-left transition hover:border-white/20 hover:bg-white/10"
                   >
@@ -162,6 +174,13 @@ export default function PortalModal({
                   </button>
 
                   <PortalAccessCard />
+                </div>
+              )}
+
+              {portalMode === "email" && (
+                <div className="space-y-4">
+                  <button onClick={() => setPortalMode("selector")} className="text-sm font-bold text-yellow-400">← Volver</button>
+                  <EmailOtpAccess />
                 </div>
               )}
 
