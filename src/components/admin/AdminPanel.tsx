@@ -52,6 +52,7 @@ export default function AdminPanel() {
   const [filter, setFilter] = useState<FilterType>("all");
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
 
   const [selectedMonthsByUser, setSelectedMonthsByUser] = useState<
@@ -239,30 +240,63 @@ export default function AdminPanel() {
   const resetPortalPin = (_user: any) => unavailableAction();
 
   const startEdit = (user: any) => {
-    const accountType = getAccountType(user);
-
-    setEditingId(user.id);
+    setMessage("");
+    setEditingId(String(user.id));
     setEditForm({
       customer_name: user.customer_name || "",
-      username: user.username || "",
       phone: user.phone || "",
-      account_type: accountType,
-      plan_months: user.plan_months || 1,
-      demo_duration_hours: user.demo_duration_hours || 1,
-      device_type: user.device_type || "Roku TV",
+      device_type: user.device_type || "",
       device_mac: user.device_mac || "",
       device_key: user.device_key || "",
       notes: user.notes || "",
-      status: user.status || "active",
-      expiration_date: user.expiration_date
-        ? user.expiration_date.slice(0, 16)
-        : "",
     });
   };
 
   const cancelEdit = () => {
+    if (isSaving) return;
     setEditingId(null);
     setEditForm({});
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || isSaving) return;
+    if (!editForm.customer_name?.trim()) {
+      setMessage("El nombre del cliente es obligatorio.");
+      return;
+    }
+    setIsSaving(true);
+    setMessage("");
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session?.access_token) {
+        throw new Error("Debes iniciar sesión nuevamente.");
+      }
+      const response = await fetch("/api/admin/update-user", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify({ id: editingId, ...editForm }),
+      });
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("La API de edición no está disponible. Prueba en Vercel.");
+      }
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo actualizar el cliente.");
+      setUsers((prev) => prev.map((user) =>
+        String(user.id) === editingId ? { ...user, ...result.user } : user
+      ));
+      setEditingId(null);
+      setEditForm({});
+      setMessage("Cliente actualizado correctamente.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el cliente.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updateSelectedMonths = (userId: string, months: number) => {
@@ -284,7 +318,7 @@ export default function AdminPanel() {
       <div>
         <h3 className="text-2xl font-bold text-white">Panel Super Admin</h3>
         <p className="text-neutral-400 text-sm">
-          Consulta segura de clientes y membresías. Las acciones de edición están temporalmente deshabilitadas.
+          Consulta segura de clientes y membresías. La edición de datos básicos está habilitada.
         </p>
       </div>
 
@@ -522,7 +556,7 @@ export default function AdminPanel() {
           {filteredUsers.map((user) => {
             const blocked = isUserBlocked(user);
             const expired = isUserExpired(user);
-            const editing = editingId === user.id;
+            const editing = editingId === String(user.id);
             const accountType = getAccountType(user);
             const selectedMonths = selectedMonthsByUser[user.id] || 1;
             const customerName = getCustomerName(user);
@@ -724,7 +758,7 @@ export default function AdminPanel() {
 
                         <button
                           onClick={() => startEdit(user)}
-                          disabled
+                          disabled={user.role !== "customer" || isSaving}
                           className="rounded-xl bg-neutral-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-700"
                         >
                           Editar
@@ -765,176 +799,44 @@ export default function AdminPanel() {
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    <h4 className="font-bold text-white">Editar cliente: {customerName}</h4>
+                    <p className="text-xs text-neutral-400">Solo datos de contacto y dispositivo. Usuario IPTV, contraseña, plan y estado no se modifican.</p>
                     <div className="grid gap-3 md:grid-cols-3">
-                      <input
-                        value={editForm.customer_name}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            customer_name: e.target.value,
-                          })
-                        }
-                        placeholder="Nombre del cliente"
-                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                      />
-
-                      <input
-                        value={editForm.username}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, username: e.target.value })
-                        }
-                        placeholder="Usuario app"
-                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                      />
-
-                      <input
-                        type="datetime-local"
-                        value={editForm.expiration_date}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            expiration_date: e.target.value,
-                          })
-                        }
-                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                      />
-
-                      <select
-                        value={editForm.account_type}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            account_type: e.target.value,
-                          })
-                        }
-                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                      >
-                        <option value="customer">Cliente final</option>
-                        <option value="demo">Demo</option>
+                      <input value={editForm.customer_name} maxLength={120}
+                        onChange={(e) => setEditForm({ ...editForm, customer_name: e.target.value })}
+                        placeholder="Nombre del cliente" aria-label="Nombre del cliente"
+                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500" />
+                      <input value={editForm.phone} maxLength={40}
+                        onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                        placeholder="Teléfono / WhatsApp" aria-label="Teléfono"
+                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500" />
+                      <select value={editForm.device_type}
+                        onChange={(e) => setEditForm({ ...editForm, device_type: e.target.value })}
+                        aria-label="Dispositivo"
+                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500">
+                        <option value="">Sin dispositivo</option>
+                        {deviceOptions.map((device) => <option key={device} value={device}>{device}</option>)}
                       </select>
-
-                      {editForm.account_type === "customer" ? (
-                        <select
-                          value={editForm.plan_months}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              plan_months: Number(e.target.value),
-                            })
-                          }
-                          className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                        >
-                          {monthOptions.map((month) => (
-                            <option key={month} value={month}>
-                              {month} mes{month > 1 ? "es" : ""}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <select
-                          value={editForm.demo_duration_hours}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              demo_duration_hours: Number(e.target.value),
-                            })
-                          }
-                          className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                        >
-                          {demoHourOptions.map((hour) => (
-                            <option key={hour} value={hour}>
-                              {hour} hora{hour > 1 ? "s" : ""}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-
-                      <input
-                        value={editForm.phone}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, phone: e.target.value })
-                        }
-                        placeholder="Teléfono"
-                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                      />
-
-                      <select
-                        value={editForm.device_type}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            device_type: e.target.value,
-                          })
-                        }
-                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                      >
-                        {deviceOptions.map((device) => (
-                          <option key={device} value={device}>
-                            {device}
-                          </option>
-                        ))}
-                      </select>
-
-                      <input
-                        value={editForm.device_mac}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            device_mac: e.target.value,
-                          })
-                        }
-                        placeholder="MAC opcional"
-                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                      />
-
-                      <input
-                        value={editForm.device_key}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            device_key: e.target.value,
-                          })
-                        }
-                        placeholder="Device Key opcional"
-                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                      />
-
-                      <select
-                        value={editForm.status}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, status: e.target.value })
-                        }
-                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                      >
-                        <option value="active">active</option>
-                        <option value="blocked">blocked</option>
-                      </select>
-
+                      <input value={editForm.device_mac} maxLength={100}
+                        onChange={(e) => setEditForm({ ...editForm, device_mac: e.target.value })}
+                        placeholder="MAC opcional" aria-label="MAC"
+                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500" />
+                      <input value={editForm.device_key} maxLength={160}
+                        onChange={(e) => setEditForm({ ...editForm, device_key: e.target.value })}
+                        placeholder="Device Key opcional" aria-label="Device Key"
+                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500" />
                     </div>
-
-                    <textarea
-                      value={editForm.notes}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, notes: e.target.value })
-                      }
-                      placeholder="Notas internas"
-                      className="min-h-[90px] w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500"
-                    />
-
+                    <textarea value={editForm.notes} maxLength={2000}
+                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                      placeholder="Notas internas" aria-label="Notas internas"
+                      className="min-h-[90px] w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-yellow-500" />
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled
-                        title="Estamos preparando el guardado seguro de clientes"
-                        className="rounded-xl bg-yellow-500 px-4 py-2 text-sm font-bold text-black opacity-50 cursor-not-allowed"
-                      >
-                        Guardar (próximamente)
+                      <button onClick={saveEdit} disabled={isSaving}
+                        className="rounded-xl bg-yellow-500 px-4 py-2 text-sm font-bold text-black disabled:opacity-50">
+                        {isSaving ? "Guardando..." : "Guardar cambios"}
                       </button>
-
-                      <button
-                        onClick={cancelEdit}
-                        className="rounded-xl bg-neutral-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-700"
-                      >
+                      <button onClick={cancelEdit} disabled={isSaving}
+                        className="rounded-xl bg-neutral-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
                         Cancelar
                       </button>
                     </div>
