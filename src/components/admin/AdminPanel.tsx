@@ -47,6 +47,8 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [resettingPinId, setResettingPinId] = useState<string | null>(null);
+  const [temporaryPinResult, setTemporaryPinResult] = useState<{ name: string; pin: string; expiresAt: string } | null>(null);
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
@@ -237,7 +239,53 @@ export default function AdminPanel() {
   const addTimeToUser = (_user: any, _months: number) => unavailableAction();
   const convertDemoToCustomer = (_user: any, _months: number) => unavailableAction();
   const toggleBlockUser = (_user: any) => unavailableAction();
-  const resetPortalPin = (_user: any) => unavailableAction();
+  const resetPortalPin = async (user: any) => {
+    if (resettingPinId) return;
+    if (user.role !== "customer") {
+      setMessage("Solo puedes restablecer el PIN de clientes.");
+      return;
+    }
+    const name = getCustomerName(user);
+    if (!window.confirm(`¿Generar un PIN temporal nuevo para ${name}? El PIN anterior dejará de funcionar y se cerrarán sus sesiones activas.`)) return;
+
+    setResettingPinId(String(user.id));
+    setTemporaryPinResult(null);
+    setMessage("");
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session?.access_token) {
+        throw new Error("Debes iniciar sesión nuevamente como administrador.");
+      }
+      const response = await fetch("/api/admin/reset-portal-pin", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify({ user_id: user.id }),
+      });
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("La API de restablecimiento no está disponible en este entorno.");
+      }
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo restablecer el PIN.");
+      if (typeof result.temporary_pin !== "string" || !/^\d{6}$/.test(result.temporary_pin)) {
+        throw new Error("El servidor no devolvió un PIN temporal válido.");
+      }
+      setTemporaryPinResult({
+        name,
+        pin: result.temporary_pin,
+        expiresAt: result.expires_at || "",
+      });
+      setMessage(`PIN temporal generado para ${name}. Se muestra abajo una sola vez.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Error restableciendo el PIN.");
+    } finally {
+      setResettingPinId(null);
+    }
+  };
 
   const startEdit = (user: any) => {
     setMessage("");
@@ -517,6 +565,14 @@ export default function AdminPanel() {
             {message}
           </p>
         )}
+        {temporaryPinResult && (
+          <div className="mt-4 rounded-xl border border-yellow-500/50 bg-neutral-900 p-4 text-white">
+            <p className="font-bold">PIN temporal para {temporaryPinResult.name}</p>
+            <p className="mt-2 font-mono text-3xl tracking-widest select-all">{temporaryPinResult.pin}</p>
+            <p className="mt-2 text-xs text-neutral-400">Válido por 30 minutos. El cliente deberá cambiarlo al ingresar. No compartas este PIN en capturas.</p>
+            <button type="button" onClick={() => setTemporaryPinResult(null)} className="mt-3 rounded-lg bg-neutral-700 px-3 py-2 text-sm font-semibold">Ocultar PIN</button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-3 md:grid-cols-[1fr_220px_120px]">
@@ -766,10 +822,10 @@ export default function AdminPanel() {
 
                         <button
                           onClick={() => resetPortalPin(user)}
-                          disabled
+                          disabled={user.role !== "customer" || resettingPinId !== null}
                           className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Reset PIN
+                          {resettingPinId === String(user.id) ? "Generando..." : "Reset PIN"}
                         </button>
 
                         {user.phone && (
